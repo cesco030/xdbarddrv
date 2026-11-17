@@ -156,6 +156,8 @@ end-pr;
 /copy QXDBSRC,XDBALWH
 dcl-c WINLINES 12;
 dcl-c WINWIDTH 68;
+// lines the text of the window can have: it is shown WINLINES at a time
+dcl-c WINMAXL 60;
 
 // ------------------------------------------------------------------ main
 
@@ -1290,19 +1292,36 @@ end-proc;
 
 // ------------------------------------------------- RDB entry and the test
 
-// The RDB directory entry makes CONNECT TO <name> call the XDB driver.
+// The RDB directory entry makes CONNECT TO <name> call the XDB driver. Its text (what
+// WRKRDBDIRE shows) is the description of the profile, or type and host when the profile
+// has none; 50 characters at most.
 dcl-proc addRdbEntry;
   dcl-pi *n;
     rdb char(18) const;
   end-pi;
   dcl-s cmd varchar(300);
+  dcl-s txt varchar(200);
 
   if not confirmed('Add RDB directory entry ' + %trim(rdb)
                    : 'It will call the XDB driver in ' + %trim(myLib) + '.');
     return;
   endif;
+  txt = '';
+  chain(n) rdb XDBPRFR;
+  if %found(XDBPRF);
+    txt = %trim(PRTEXT);
+    if txt = '';
+      txt = %trim(%trim(PRTYPE) + ' ' + %trim(PRHOST));
+    endif;
+  endif;
+  if %len(txt) > 50;
+    txt = %trimr(%subst(txt : 1 : 50));
+  endif;
   cmd = 'ADDRDBDIRE RDB(' + %trim(rdb) + ') RMTLOCNAME(*ARDPGM) ARDPGM('
       + %trim(myLib) + '/XDBARD)';
+  if txt <> '';
+    cmd += ' TEXT(''' + %scanrpl('''' : '''''' : txt) + ''')';
+  endif;
   callp(e) runCommand(cmd : %len(cmd));
   if %error();
     listMsg = 'RDB entry not added (' + pgmSts.msgId + '). It may exist already: WRKRDBDIRE.';
@@ -1506,8 +1525,8 @@ dcl-proc setupLine;
     msg varchar(78);
     msgErr ind;
   end-pi;
-  dcl-s lines char(WINWIDTH) dim(WINLINES);
-  dcl-s notes char(WINWIDTH) dim(WINLINES);
+  dcl-s lines char(WINWIDTH) dim(WINMAXL);
+  dcl-s notes char(WINWIDTH) dim(WINMAXL);
   dcl-s n int(10) inz(0);
   dcl-s nn int(10) inz(0);
   dcl-s j int(10);
@@ -1544,7 +1563,7 @@ dcl-proc setupLine;
     other;
       M1KEYS = 'Enter=Continue';
   endsl;
-  showWindow(lines);
+  showWindow(lines : n);
   if exitKey or cancelKey or not run;
     cancelKey = *off;
     return;
@@ -1575,27 +1594,54 @@ dcl-proc setupLine;
     msgErr = *on;
   endif;
   M1KEYS = 'Enter=Continue';
-  showWindow(lines);
+  showWindow(lines : n);
   cancelKey = *off;
 end-proc;
 
 dcl-proc showWindow;
   dcl-pi *n;
-    lines char(WINWIDTH) dim(WINLINES) const;
+    lines char(WINWIDTH) dim(WINMAXL) const;
+    used int(10) const;
   end-pi;
-  M1L01 = lines(1);
-  M1L02 = lines(2);
-  M1L03 = lines(3);
-  M1L04 = lines(4);
-  M1L05 = lines(5);
-  M1L06 = lines(6);
-  M1L07 = lines(7);
-  M1L08 = lines(8);
-  M1L09 = lines(9);
-  M1L10 = lines(10);
-  M1L11 = lines(11);
-  M1L12 = lines(12);
-  exfmt CMDWIN;
+  dcl-s first int(10) inz(1);
+  dcl-s lastKeys char(WINWIDTH);
+  dcl-s part char(WINWIDTH) dim(WINLINES);
+  dcl-s k int(10);
+
+  // A text of more than WINLINES lines is shown in pages: Enter goes on to
+  // the next one, and the keys the caller put into M1KEYS are those of the
+  // last page. F12 or F3 on any page ends it there.
+  lastKeys = M1KEYS;
+  dow *on;
+    clear part;
+    for k = 1 to WINLINES;
+      if first + k - 1 <= WINMAXL;
+        part(k) = lines(first + k - 1);
+      endif;
+    endfor;
+    M1L01 = part(1);
+    M1L02 = part(2);
+    M1L03 = part(3);
+    M1L04 = part(4);
+    M1L05 = part(5);
+    M1L06 = part(6);
+    M1L07 = part(7);
+    M1L08 = part(8);
+    M1L09 = part(9);
+    M1L10 = part(10);
+    M1L11 = part(11);
+    M1L12 = part(12);
+    if first + WINLINES <= used;
+      M1KEYS = 'More follows.   Enter=Next page   F12=Cancel';
+    else;
+      M1KEYS = lastKeys;
+    endif;
+    exfmt CMDWIN;
+    if exitKey or cancelKey or first + WINLINES > used;
+      leave;
+    endif;
+    first += WINLINES;
+  enddo;
 end-proc;
 
 // Adds text to the window lines, broken at blanks; the lines after the
@@ -1603,7 +1649,7 @@ end-proc;
 dcl-proc wrapText;
   dcl-pi *n;
     text varchar(300) const;
-    lines char(WINWIDTH) dim(WINLINES);
+    lines char(WINWIDTH) dim(WINMAXL);
     n int(10);
     indent int(10) const;
   end-pi;
@@ -1614,7 +1660,7 @@ dcl-proc wrapText;
   dcl-s first ind inz(*on);
 
   rest = %trim(text);
-  dow %len(rest) > 0 and n < WINLINES;
+  dow %len(rest) > 0 and n < WINMAXL;
     w = WINWIDTH;
     if not first;
       w = WINWIDTH - indent;

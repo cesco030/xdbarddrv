@@ -58,20 +58,36 @@ overwrite them.
 - System value QRETSVRSEC = 1 to store passwords in the profiles. Without
   it the databases can be used with a password given on CONNECT or with a
   password file.
-- For the two setup steps about the owner profile: *SECADM and *ALLOBJ
-  special authority. The setup shows the commands, so a security officer
-  can run them.
+- For the setup steps about owners: *SECADM and *ALLOBJ special
+  authority. The setup shows the commands, so a security officer can run
+  them.
+
+## Where the packages come from
+
+The published packages are built on PUB400.COM, a public IBM i system, from
+the sources of this repository: a clone of the commit that carries the
+version tag, compiled there by `build/dist.sh` in library CESCO2 under the
+profile CESCO. Nothing in them comes from another place. They are in the
+branch `packages` of the repository, one folder for each version: the
+objects save file, the sources save file, this README, the help of the
+command as a page, the licence texts, the log of the build (`dist.log`) and
+`SHA256SUMS`.
+
+Two things in this README follow from that: the restore commands name
+`SAVLIB(CESCO2)`, and after the first restore the setup has the line
+*Objects have an owner of this system* to do (see "Installing").
 
 ## Installing
 
-Upload the objects save file to the IFS in binary, then:
+Take `xdb-<version>-objects.savf` from the folder of the version in the
+branch `packages`, upload it to the IFS in binary, then:
 
 ```
 CRTLIB LIB(XDB)
 CRTSAVF FILE(QGPL/XDBSAVF)
 CPYFRMSTMF FROMSTMF('/path/xdb-<version>-objects.savf')
            TOMBR('/QSYS.LIB/QGPL.LIB/XDBSAVF.FILE') MBROPT(*REPLACE) CVTDTA(*NONE)
-RSTOBJ OBJ(*ALL) SAVLIB(XDBBUILD) DEV(*SAVF) SAVF(QGPL/XDBSAVF) RSTLIB(XDB)
+RSTOBJ OBJ(*ALL) SAVLIB(CESCO2) DEV(*SAVF) SAVF(QGPL/XDBSAVF) RSTLIB(XDB)
 CALL PGM(XDB/XDBPRFM)
 ```
 
@@ -96,6 +112,7 @@ first. It lists what is in order and what is to do:
 | Password list XDBVLDL | creates it with public authority *EXCLUDE |
 | Driver bound to this library | binds the programs to the service programs of this library, so the driver works in every job whatever its library list is |
 | Command WRKXDBPRF | points the command and its help to this library |
+| Objects have an owner of this system | gives the objects that the restore left with the default owner QDFTOWN to QPGMR (see below) |
 | Owner profile | creates profile XDBOWNER (or the name you type): no password, no special authority |
 | Driver and passwords owned by it | gives the driver and the password list to that profile and lets the driver adopt its authority to read the passwords |
 
@@ -105,13 +122,21 @@ command is written to the job log before it runs. Option `5` shows the
 commands of a line without running anything. Nothing outside the library is
 changed except the owner profile; system values are never changed.
 
+A restore gives an object to the default owner QDFTOWN when the profile
+that owned it where it was saved does not exist on your system. That is the
+case of a package built by a profile of its own, and the line *Objects have
+an owner of this system* is then to do: it gives each of those objects to
+QPGMR. A package built by QPGMR arrives with that owner and the line is in
+order from the start.
+
 After the setup the library is no longer needed in the library list.
 
 ## First steps
 
 1. `WRKXDBPRF`, `F6`: add a profile (RDB name, database type, host,
    database, user), Enter, then `F10` to store the password.
-2. Option `8` adds the RDB directory entry of the same name.
+2. Option `8` adds the RDB directory entry of the same name, with the
+   description of the profile as its text (what `WRKRDBDIRE` lists).
 3. Option `9` tests the connection.
 4. In STRSQL: `CONNECT TO name`, then SQL in the dialect of the server.
    `COMMIT` before `DISCONNECT name`; `CONNECT RESET` returns to Db2.
@@ -393,20 +418,24 @@ parameter more than for the first install, and start the program:
 ```
 CPYFRMSTMF FROMSTMF('/path/xdb-<version>-objects.savf')
            TOMBR('/QSYS.LIB/QGPL.LIB/XDBSAVF.FILE') MBROPT(*REPLACE) CVTDTA(*NONE)
-RSTOBJ OBJ(*ALL) SAVLIB(XDBBUILD) DEV(*SAVF) SAVF(QGPL/XDBSAVF) RSTLIB(XDB)
+RSTOBJ OBJ(*ALL) SAVLIB(CESCO2) DEV(*SAVF) SAVF(QGPL/XDBSAVF) RSTLIB(XDB)
        ALWOBJDIF(*OWNER *FILELVL)
 CALL PGM(XDB/XDBPRFM)
 ```
 
 `ALWOBJDIF(*OWNER *FILELVL)` is needed because an installed library differs
-from the package in two ways that a restore otherwise refuses: the setup has
-given the driver to the owner profile, and the option dictionary and the two
-model files are created anew for every package. Without the parameter the
-restore ends with "10 objects restored. 4 not restored" and leaves the old
-driver beside new programs; repeat it with the parameter then. The parameter
-asks for special authority *ALLOBJ. The messages CPF370B (the owner profile
-owns service program XDB) and CPF3848 (1 security or data format changes
-occurred) are expected.
+from the package in two ways that a restore otherwise refuses: objects have
+another owner (the setup has given the driver to the owner profile, and the
+other objects differ too when the package was built by another profile than
+the one before), and the option dictionary and the two model files are
+created anew for every package. Without the parameter the restore leaves
+those objects out - it ends with a message like "10 objects restored. 4 not
+restored" - and old objects stay beside new ones; repeat it with the
+parameter then. The parameter asks for special authority *ALLOBJ. The
+messages CPF370B (one for each object whose owner differs, for example "the
+owner profile owns service program XDB") and CPF3848 (security or data
+format changes occurred) are expected. The objects keep the owners they
+have in the library.
 
 In the program press `F9`: the setup shows three lines to do - the binding of
 the driver to the library, the command, and the driver adopting its owner -
@@ -451,6 +480,28 @@ sh build/bind_ile.sh   <dir> <lib>
 sh build/build_xdb.sh  <dir> <lib>
 sh build/build_prf.sh  <dir> <lib>
 ```
+
+`sh build/dist.sh <dir> <buildlib> <version>` makes a whole package like this
+one in a build library of its own; the head of the script tells what it
+does to that library. It needs no special authority: where the user may not
+create validation lists (on a shared system, for example) the password list
+and the self test that uses it are left out, and the public authority of
+the objects is set by the script instead of the system value QCRTAUT. Three
+things follow from where a package is built:
+
+- `RSTOBJ` wants the name of the library the objects were saved from. The
+  help and this README name CESCO2, where the published packages are built
+  (the name is in `build/savlib.txt`); built in another library, the help of
+  the command and the README that the script puts beside the save files
+  name that one.
+- The objects belong to the profile that built them. On a system without
+  that profile a restore gives them to QDFTOWN, and the setup has the line
+  *Objects have an owner of this system* to do.
+- The scripts read their logs with patterns, and the characters `^ $ |` of
+  a pattern go by the locale of the job, not by its CCSID. The script stops
+  at once when the two do not fit; `export LANG=/QSYS.LIB/<name>.LOCALE`
+  with a locale of the CCSID of the job, before the script is started, puts
+  that right.
 
 ## Limits
 

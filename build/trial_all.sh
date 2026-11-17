@@ -4,12 +4,16 @@
 #   Run it in a job WITHOUT <buildlib> in its library list.
 # 1. empties <buildlib> (only when it carries the marker of dist.sh), restores the objects save
 #    file from the IFS into it and shows the checks                -> out/trial1.log, /tmp/xdbt19_1.out
-# 2. runs the setup, all but the owner profile and the ownership     -> out/trial2.log, /tmp/xdbt19_2.out
+# 2. gives the objects to the default owner QDFTOWN, as a restore does on a system without the
+#    profile that built the package, and runs the setup, all but the owner profile and the
+#    ownership of the driver                                        -> out/trial2.log, /tmp/xdbt19_2.out
 # 3. empties and restores again, so that <buildlib> is left as an installer finds it: restored,
 #    not set up (add it to the library list and run WRKXDBPRF to see the Setup display)
 #    -> out/trial3.log
 # With "fresh" only step 3 is done.
 K=$1; B=$2; V=$3; P=$4; ONLY=$5
+# XDB_SAVLIB: the library the package was saved from, when it was not built in <buildlib>
+SL=$XDB_SAVLIB; if test -z "$SL"; then SL=$B; fi
 F=$K/../dist/xdb-$V-objects.savf
 A=$K/out/trial_all.log
 echo "trial of $F in $B, $(date)" > $A
@@ -24,12 +28,14 @@ empty() {
 }
 if test -z "$ONLY"; then
   empty || exit 1
-  sh $K/build/trial.sh $K $F $B $B $P RESTORE
+  sh $K/build/trial.sh $K $F $SL $B $P RESTORE
   cp $K/out/trial.log $K/out/trial1.log; cp /tmp/xdbt19.out /tmp/xdbt19_1.out
-  sh $K/build/trial.sh $K $F $B $B $P SETUP
-  cp $K/out/trial.log $K/out/trial2.log; cp /tmp/xdbt19.out /tmp/xdbt19_2.out
+  sh $K/build/trial.sh $K $F $SL $B $P QDFTOWN
+  cp $K/out/trial.log $K/out/trial2.log
+  sh $K/build/trial.sh $K $F $SL $B $P SETUP
+  cat $K/out/trial.log >> $K/out/trial2.log; cp /tmp/xdbt19.out /tmp/xdbt19_2.out
 fi
 empty || exit 1
-sh $K/build/trial.sh $K $F $B $B $P RESTORE
+sh $K/build/trial.sh $K $F $SL $B $P RESTORE
 cp $K/out/trial.log $K/out/trial3.log
 echo "end $(date)" >> $A

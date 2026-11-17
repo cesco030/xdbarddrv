@@ -41,8 +41,16 @@ exists XDBPRF '*FILE' && echo "XDBPRF kept" >> $L ||
   step XDBPRF "CRTPF FILE($LIB/XDBPRF) SRCFILE($LIB/QXDBSRC) SRCMBR(XDBPRF) AUT(*USE)"
 exists XDBPRO '*FILE' && echo "XDBPRO kept" >> $L ||
   step XDBPRO "CRTPF FILE($LIB/XDBPRO) SRCFILE($LIB/QXDBSRC) SRCMBR(XDBPRO) AUT(*USE)"
-exists XDBVLDL '*VLDL' && echo "XDBVLDL kept" >> $L ||
-  step XDBVLDL "CRTVLDL VLDL($LIB/XDBVLDL) AUT(*EXCLUDE) TEXT('XDB - passwords of the connection profiles')"
+# A user who may not create validation lists (a shared system, for example) can still build
+# everything else: the password list and the self test that stores a password are left out.
+VLDL=yes
+if system "CHKOBJ OBJ(QSYS/CRTVLDL) OBJTYPE(*CMD) AUT(*USE)" > /dev/null 2>&1; then
+  exists XDBVLDL '*VLDL' && echo "XDBVLDL kept" >> $L ||
+    step XDBVLDL "CRTVLDL VLDL($LIB/XDBVLDL) AUT(*EXCLUDE) TEXT('XDB - passwords of the connection profiles')"
+else
+  VLDL=no
+  echo "XDBVLDL left out: this user may not use CRTVLDL (password list and self test XDBT9 skipped)" >> $L
+fi
 exists XDBKWD '*FILE' && system "DLTF FILE($LIB/XDBKWD)" > /dev/null 2>&1
 step XDBKWD "CRTPF FILE($LIB/XDBKWD) SRCFILE($LIB/QXDBSRC) SRCMBR(XDBKWD) AUT(*USE)" &&
   step XDBKWD_DATA "RUNSQLSTM SRCSTMF('$K/prf/xdbkwd.sql') COMMIT(*NONE) NAMING(*SQL) DFTRDBCOL($LIB)"
@@ -59,6 +67,7 @@ step XDBPRFT_MOD "CRTCMOD MODULE($LIB/XDBPRFT) SRCSTMF('$K/prf/xdbprft.c') TGTCC
 sh $K/build/build_hlp.sh $K $LIB "$R"; cat $K/out/hlp.log >> $L
 
 # self test of the file and password access
+if test "$VLDL" = "no"; then echo end >> $L; exit 0; fi
 step XDBT9_DATA "RUNSQLSTM SRCSTMF('$K/test/xdbt9.sql') COMMIT(*NONE) NAMING(*SQL) DFTRDBCOL($LIB)"
 rm -f /tmp/xdbt9.out
 step XDBT9_MOD "CRTCMOD MODULE($LIB/XDBT9) SRCSTMF('$K/test/xdbt9.c') TGTCCSID(*JOB) INCDIR('$K/xdb') SYSIFCOPT(*IFS64IO) DBGVIEW(*NONE) OUTPUT(*PRINT) OPTION(*NOSHOWINC) REPLACE(*YES)" &&

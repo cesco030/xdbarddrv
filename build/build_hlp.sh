@@ -16,7 +16,20 @@ hstep() { # name, command: listing in out/<name>.lst, the error lines of a failu
   grep -E "CPD[0-9A-F]+|CPF[0-9A-F]+" $K/out/$1.lst | head -30 >> $H
   return 1
 }
-hstep SRC_WRKXDBPRFH "CPYFRMSTMF FROMSTMF('$K/prf/wrkxdbprf.pnlgrp') TOMBR('$S/WRKXDBPRFH.MBR') MBROPT(*REPLACE)" &&
+# The help shows the restore command of an update, and RSTOBJ needs the name of the library the
+# package was saved from. The source names the library the published packages are saved from
+# (the one line of build/savlib.txt); a package built in another library names that one.
+P=$K/prf/wrkxdbprf.pnlgrp
+DOCLIB=$(cat $K/build/savlib.txt)
+if test "$R" = "*LIBL"; then
+  if test "$LIB" != "$DOCLIB"; then
+    rm -f $K/out/wrkxdbprf.pnlgrp
+    sed "s/SAVLIB($DOCLIB)/SAVLIB($LIB)/g" $P > $K/out/wrkxdbprf.pnlgrp
+    P=$K/out/wrkxdbprf.pnlgrp
+  fi
+  echo "help names SAVLIB($LIB) in $(grep -c "SAVLIB($LIB)" $P) commands" >> $H
+fi
+hstep SRC_WRKXDBPRFH "CPYFRMSTMF FROMSTMF('$P') TOMBR('$S/WRKXDBPRFH.MBR') MBROPT(*REPLACE)" &&
   system "CHGPFM FILE($LIB/QXDBSRC) MBR(WRKXDBPRFH) SRCTYPE(PNLGRP) TEXT('Help for command WRKXDBPRF')" > /dev/null 2>&1
 hstep SRC_WRKXDBPRF "CPYFRMSTMF FROMSTMF('$K/prf/wrkxdbprf.cmd') TOMBR('$S/WRKXDBPRF.MBR') MBROPT(*REPLACE)" &&
   system "CHGPFM FILE($LIB/QXDBSRC) MBR(WRKXDBPRF) SRCTYPE(CMD) TEXT('Work with XDB connection profiles')" > /dev/null 2>&1

@@ -72,3 +72,6 @@ build/xlost.sh
 test/xdblost.sqlrpgle
 test/cmttest.sh
 test/cmttest.expected
+build/xdbstamp.c
+build/chk_savf.py
+build/savlib.txt

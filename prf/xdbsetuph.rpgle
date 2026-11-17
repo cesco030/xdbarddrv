@@ -3,7 +3,8 @@
 // installation). Copied into XDBPRFM and into the batch test XDBT19.
 
 dcl-c XS_MAXITEMS 12;
-dcl-c XS_MAXCMDS 5;
+// the line about the owner of the objects has one command for each object of a package
+dcl-c XS_MAXCMDS 14;
 
 // One line of the setup list.
 //   state  O = in order, T = to do (setup can do it), W = remark,

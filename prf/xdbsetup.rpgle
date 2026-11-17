@@ -9,6 +9,8 @@
 //     package: a restore cannot overwrite profiles or passwords)
 //   - the programs are bound to the service programs of this library
 //   - the command points to this library
+//   - no object of the package is left with the default owner QDFTOWN (a
+//     restore gives it the objects of a profile this system does not have)
 //   - the driver and the password list belong to a profile made for it,
 //     and the driver adopts its authority to read the passwords
 // For everything to do it gives the CL commands. Nothing is changed here
@@ -136,6 +138,27 @@ dcl-pr QCMDEXC extpgm('QCMDEXC');
 end-pr;
 
 dcl-c USRSPC 'XDBSETUP  QTEMP     ';
+
+// The objects a package brings, name 10 and type 10. The driver XDB is not
+// in the list: its owner is the matter of the two owner lines.
+dcl-ds pkgObjects qualified;
+  *n char(20) inz('LIBPQ     *SRVPGM');
+  *n char(20) inz('XDBARD    *PGM');
+  *n char(20) inz('XDBCMT    *PGM');
+  *n char(20) inz('XDBPRFM   *PGM');
+  *n char(20) inz('XDBPRFT   *PGM');
+  *n char(20) inz('WRKXDBPRF *CMD');
+  *n char(20) inz('WRKXDBPRF *PNLGRP');
+  *n char(20) inz('XDBPRFD   *FILE');
+  *n char(20) inz('XDBKWD    *FILE');
+  *n char(20) inz('XDBPRFMDL *FILE');
+  *n char(20) inz('XDBPROMDL *FILE');
+  *n char(20) inz('XDBLICENSE*FILE');
+  *n char(20) inz('XDBVER    *DTAARA');
+  entry char(20) dim(13) pos(1);
+end-ds;
+// the profile that gets the objects found with the default owner
+dcl-c PKG_OWNER 'QPGMR';
 
 // data area XDBVER of the library looked at (a data area cannot be
 // defined inside a procedure)
@@ -402,6 +425,8 @@ dcl-proc xs_check export;
   dcl-s haveList ind;
   dcl-s haveDriver ind;
   dcl-s i int(10);
+  dcl-s pkgName char(10);
+  dcl-s pkgType char(10);
 
   L = %trim(lib);
   owner = ownerIn;
@@ -591,6 +616,32 @@ dcl-proc xs_check export;
       addCmd(items(n) : 'CHGCMD CMD(' + L + '/WRKXDBPRF) PGM(' + L + '/XDBPRFM) HLPPNLGRP('
                       + L + '/WRKXDBPRF)');
     endif;
+  endif;
+
+  // ---- objects restored without their owner
+  // A restore gives the objects whose owner profile is not on this system to
+  // QDFTOWN. That is the case of every package built by a profile of its
+  // own; a package built by QPGMR arrives with QPGMR as the owner.
+  n += 1;
+  items(n).id = 'OBJOWN';
+  items(n).text = 'Objects have an owner of this system';
+  for i = 1 to %elem(pkgObjects.entry);
+    pkgName = %subst(pkgObjects.entry(i) : 1 : 10);
+    pkgType = %subst(pkgObjects.entry(i) : 11 : 10);
+    if objInfo(lib : pkgName : pkgType : o : asp) and o = 'QDFTOWN';
+      addCmd(items(n) : 'CHGOBJOWN OBJ(' + L + '/' + %trim(pkgName) + ') OBJTYPE('
+                      + %trim(pkgType) + ') NEWOWN(' + PKG_OWNER + ')');
+    endif;
+  endfor;
+  if items(n).ncmd = 0;
+    items(n).state = 'O';
+    items(n).status = 'OK';
+  else;
+    items(n).state = 'T';
+    items(n).status = 'To do: now QDFTOWN';
+    items(n).note = 'The profile that built the package is not on this system, so '
+                  + 'the restore gave these objects to QDFTOWN. They go to '
+                  + PKG_OWNER + '.';
   endif;
 
   // ---- the owner profile

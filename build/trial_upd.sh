@@ -1,7 +1,9 @@
 # QSH script: trial of an UPDATE - an older package installed and set up in the build library,
 # then the objects save file of a newer package restored over it, as the README tells it.
 #   usage: sh trial_upd.sh <kitdir> <buildlib> <oldversion> <newversion> <pgmlib> [<owner>]
-#   Both packages are taken from <kitdir>/../dist and must have been made in <buildlib>.
+#   Both packages are taken from <kitdir>/../dist. A package that was not made in <buildlib>
+#   needs the name of the library it was saved from: XDB_SAVLIB for the new one, XDB_SAVLIB_OLD
+#   for the old one.
 #   <pgmlib> holds XDBT19, the batch driver of the setup module (see trial.sh).
 #   <owner>: an existing user profile that gets the driver and the password list of the old
 #   installation, as the setup does it.  Left out, the owner lines are not run, and the trial
@@ -16,6 +18,8 @@
 #   log: <kitdir>/out/trial_upd.log.  Good: last line "RESULT: update trial OK"; every step
 #   that is judged has a line ending in "-> OK".
 K=$1; B=$2; VO=$3; VN=$4; P=$5; OWN=$6
+SLN=$XDB_SAVLIB; if test -z "$SLN"; then SLN=$B; fi
+SLO=$XDB_SAVLIB_OLD; if test -z "$SLO"; then SLO=$B; fi
 test -d $K/out || mkdir $K/out
 L=$K/out/trial_upd.log
 X=$K/out/trial_upd.tmp
@@ -47,9 +51,9 @@ notok() { # lines of the last checks in /tmp/xdbt19.out that are not OK; without
 }
 
 echo "--- 1. $VO installed and set up" >> $L
-sh $K/build/trial.sh $K $FO $B $B $P RESTORE
+sh $K/build/trial.sh $K $FO $SLO $B $P RESTORE
 grep -E "CPC37|CPF37|FAILED" $K/out/trial.log >> $L
-if test -n "$OWN"; then sh $K/build/trial.sh $K $FO $B $B $P OWNER $OWN; else sh $K/build/trial.sh $K $FO $B $B $P SETUP; fi
+if test -n "$OWN"; then sh $K/build/trial.sh $K $FO $SLO $B $P OWNER $OWN; else sh $K/build/trial.sh $K $FO $SLO $B $P SETUP; fi
 grep -E "rc=|FAILED" $K/out/trial.log >> $L
 n=$(notok)
 if test "$n" = "0"; then echo "setup of $VO -> OK" >> $L; else echo "setup of $VO -> $n lines NOT OK" >> $L; sed -n '/--- after/,$p' /tmp/xdbt19.out | grep -E "^[TWF] " >> $L; fi
@@ -59,8 +63,8 @@ if grep "DB20000I" $X > /dev/null; then echo "one profile written into XDBPRF ->
 echo "--- 2. $VN restored over it" >> $L
 system "CRTSAVF FILE($B/XDBSAVN) TEXT('XDB package (trial of an update)')" > /dev/null 2>&1
 if system "CPYFRMSTMF FROMSTMF('$FN') TOMBR('/QSYS.LIB/$B.LIB/XDBSAVN.FILE') MBROPT(*REPLACE) CVTDTA(*NONE)" > $X 2>&1; then :; else echo "copy of $FN into $B/XDBSAVN -> FAILED" >> $L; fi
-echo "RSTOBJ OBJ(*ALL) SAVLIB($B) DEV(*SAVF) SAVF($B/XDBSAVN) RSTLIB($B) ALWOBJDIF(*OWNER *FILELVL)" >> $L
-system "RSTOBJ OBJ(*ALL) SAVLIB($B) DEV(*SAVF) SAVF($B/XDBSAVN) RSTLIB($B) ALWOBJDIF(*OWNER *FILELVL)" > $X 2>&1
+echo "RSTOBJ OBJ(*ALL) SAVLIB($SLN) DEV(*SAVF) SAVF($B/XDBSAVN) RSTLIB($B) ALWOBJDIF(*OWNER *FILELVL)" >> $L
+system "RSTOBJ OBJ(*ALL) SAVLIB($SLN) DEV(*SAVF) SAVF($B/XDBSAVN) RSTLIB($B) ALWOBJDIF(*OWNER *FILELVL)" > $X 2>&1
 grep -E "CPF37[0-9A-F]{2}|CPF38[0-9A-F]{2}|CPC37[0-9A-F]{2}|CPF32[0-9A-F]{2}" $X | sed 's/^/  /' >> $L
 if grep -E " 0 not restored|CPC3703" $X > /dev/null; then echo "restore of $VN over $VO -> OK" >> $L; else echo "restore of $VN over $VO -> INCOMPLETE" >> $L; fi
 

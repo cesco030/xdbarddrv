@@ -14,6 +14,20 @@
 # data area XDBBUILD, which this script puts there: a library that is not a build library of
 # this script is never touched.
 #
+# The package does not depend on the system it is built on more than it must: the public
+# authority of every object is set here (not left to system value QCRTAUT), and the build goes
+# through also for a user without special authority who may not create validation lists.
+# The objects still name the system, the user and the library that made them, and RSTOBJ needs
+# the name of that library. Help and README name the library the published packages are saved
+# from (its name is the one line of build/savlib.txt); built in another library, the restore
+# commands in the help of the command and in the README beside the save files name that one
+# (build_hlp.sh, and below).
+#
+# Environment:  XDB_NOSRC=1   no sources save file and no copy of the sources (a build from a
+#                             clone of the repository: the clone is the source tree)
+#               LANG          must name a locale of the CCSID of the job (checked below); it does
+#                             by itself where the system values QCCSID and QLOCALE fit together
+#
 # Result in <kitdir>/../dist:  xdb-<version>-objects.savf   objects (RSTOBJ ... SAVLIB(<buildlib>))
 #                              xdb-<version>-sources.savf   sources (RST from /tmp/xdb-src)
 #                              xdb-src/                     the same sources as a tree
@@ -26,6 +40,18 @@ mkdir -p $D $K/out
 L=$D/dist.log
 VER="$V $(date +%Y-%m-%d)"
 echo "XDB package $VER, build library $B, start $(date)" > $L
+# The scripts read their logs with patterns that use ^ $ and |. Those characters sit at other
+# code points from one EBCDIC code page to the next, and a search goes by the locale of the job
+# (LANG) while the scripts are read in its CCSID. When the two do not fit, the searches find
+# nothing and the log would be silent about failures: checked before anything is touched.
+if test "$(echo ab | grep -c -E '^ab$|^x')" != "1"; then
+  echo "The locale of this job does not fit its CCSID: a search with the characters ^ \$ | finds nothing." >> $L
+  echo "Set LANG to a locale of the CCSID of the job (CCSID 1144, for example: export LANG=/QSYS.LIB/IT_IT.LOCALE) and run again. Nothing was done." >> $L
+  exit 1
+fi
+# the modules that are not compiled as UTF-8 take the CCSID of this job: the log says which
+system "DSPJOB OPTION(*DFNA) OUTPUT(*PRINT)" > $K/out/dist.tmp 2>&1
+grep -i "character set" $K/out/dist.tmp | grep -v -i default | sed 's/  */ /g;s/\. //g' | head -1 >> $L
 ok() { system "CHKOBJ OBJ($B/$1) OBJTYPE($2)" > /dev/null 2>&1; }
 do1() { # label, command
   if system "$2" > $K/out/dist.tmp 2>&1; then echo "$1 -> OK" >> $L; return 0; fi
@@ -60,7 +86,7 @@ sh $K/build/build_xdb.sh $K $B '*LIBL'
 grep -E " OK$|FAILED|not created|adopts" $K/out/xdb.log >> $L
 echo "--- profiles, setup, command, help" >> $L
 sh $K/build/build_prf.sh $K $B '*LIBL'
-grep -E " OK$|FAILED|kept" $K/out/prf.log | grep -v "^SRC_" >> $L
+grep -E " OK$|FAILED|kept|left out|names SAVLIB" $K/out/prf.log | grep -v "^SRC_" >> $L
 
 MISSING=""
 for o in XDB:SRVPGM LIBPQ:SRVPGM XDBARD:PGM XDBCMT:PGM XDBPRFM:PGM XDBPRFT:PGM WRKXDBPRF:CMD WRKXDBPRF:PNLGRP XDBPRFD:FILE XDBKWD:FILE XDBPRF:FILE XDBPRO:FILE; do
@@ -76,7 +102,7 @@ do1 "XDBPRO becomes the model XDBPROMDL" "RNMOBJ OBJ($B/XDBPRO) OBJTYPE(*FILE) N
 do1 "models are empty" "CLRPFM FILE($B/XDBPRFMDL)" && do1 "models are empty" "CLRPFM FILE($B/XDBPROMDL)"
 do1 "text of XDBPRFMDL" "CHGOBJD OBJ($B/XDBPRFMDL) OBJTYPE(*FILE) TEXT('XDB - model of XDBPRF, the setup copies it')"
 do1 "text of XDBPROMDL" "CHGOBJD OBJ($B/XDBPROMDL) OBJTYPE(*FILE) TEXT('XDB - model of XDBPRO, the setup copies it')"
-do1 "no password list in the package" "DLTVLDL VLDL($B/XDBVLDL)"
+if ok XDBVLDL '*VLDL'; then do1 "no password list in the package" "DLTVLDL VLDL($B/XDBVLDL)"; else echo "no password list in the package -> OK (none was made)" >> $L; fi
 do1 "version $VER" "CRTDTAARA DTAARA($B/XDBVER) TYPE(*CHAR) LEN(50) VALUE('$VER') TEXT('XDB - version of this package')"
 # the licence and the notices travel inside the objects save file too: source file XDBLICENSE
 # (CCSID 37, the texts are plain ASCII)
@@ -97,6 +123,17 @@ done
 system "DSPSRVPGM SRVPGM($B/XDB) DETAIL(*SRVPGM)" > $K/out/dist.tmp 2>&1
 echo "  XDB bound to: $(grep -E ' LIBPQ ' $K/out/dist.tmp | sed 's/  */ /g' | cut -c1-20)" >> $L
 
+# the public authority of what is saved, whatever QCRTAUT is here: use for everybody, as the
+# packages always had it; the dictionary and the two models are read only
+AUTBAD=0
+for o in XDB:SRVPGM LIBPQ:SRVPGM XDBARD:PGM XDBCMT:PGM XDBPRFM:PGM XDBPRFT:PGM WRKXDBPRF:CMD WRKXDBPRF:PNLGRP XDBPRFD:FILE XDBVER:DTAARA XDBLICENSE:FILE; do
+  system "GRTOBJAUT OBJ($B/${o%%:*}) OBJTYPE(*${o##*:}) USER(*PUBLIC) AUT(*CHANGE) REPLACE(*YES)" > /dev/null 2>&1 || AUTBAD=$((AUTBAD+1))
+done
+for o in XDBKWD XDBPRFMDL XDBPROMDL; do
+  system "GRTOBJAUT OBJ($B/$o) OBJTYPE(*FILE) USER(*PUBLIC) AUT(*USE) REPLACE(*YES)" > /dev/null 2>&1 || AUTBAD=$((AUTBAD+1))
+done
+if test $AUTBAD -eq 0; then echo "public authority of the 14 objects set -> OK" >> $L; else echo "public authority of the 14 objects set -> FAILED for $AUTBAD" >> $L; fi
+
 # ---- objects save file
 do1 "save file for the objects" "CRTSAVF FILE($B/XDBOBJ) TEXT('XDB $V - objects')" || exit 1
 do1 "save the objects" "SAVOBJ OBJ(XDB LIBPQ XDBARD XDBCMT XDBPRFM XDBPRFT WRKXDBPRF XDBPRFD XDBKWD XDBPRFMDL XDBPROMDL XDBVER XDBLICENSE) LIB($B) DEV(*SAVF) SAVF($B/XDBOBJ) OBJTYPE(*SRVPGM *PGM *CMD *PNLGRP *FILE *DTAARA) DTACPR(*YES)" || exit 1
@@ -104,6 +141,9 @@ grep -E "CPC37[0-9A-F]{2}" $K/out/dist.tmp >> $L
 do1 "objects save file to the IFS" "CPYTOSTMF FROMMBR('/QSYS.LIB/$B.LIB/XDBOBJ.FILE') TOSTMF('$D/xdb-$V-objects.savf') STMFOPT(*REPLACE) CVTDTA(*NONE)"
 
 # ---- sources: only what build/dist.files names, staged in a neutral directory
+if test -n "$XDB_NOSRC"; then
+echo "--- sources: left out (XDB_NOSRC)" >> $L
+else
 echo "--- sources" >> $L
 rm -rf $S $D/xdb-src
 mkdir -p $S
@@ -122,9 +162,22 @@ do1 "save file for the sources" "CRTSAVF FILE($B/XDBSRC) TEXT('XDB $V - sources 
 do1 "save the sources" "SAV DEV('/QSYS.LIB/$B.LIB/XDBSRC.FILE') OBJ(('$S')) SUBTREE(*ALL) DTACPR(*YES)" &&
 do1 "sources save file to the IFS" "CPYTOSTMF FROMMBR('/QSYS.LIB/$B.LIB/XDBSRC.FILE') TOSTMF('$D/xdb-$V-sources.savf') STMFOPT(*REPLACE) CVTDTA(*NONE)"
 cp -R $S $D/xdb-src
+fi
 
 # ---- documentation
-cp $K/doc/README.md $D/README.md
+# RSTOBJ needs the name of the library the objects were saved from: the README that goes beside
+# the save files names this build library (the sources name the one of build/savlib.txt)
+DOCLIB=$(cat $K/build/savlib.txt)
+rm -f $D/README.md
+if test "$B" = "$DOCLIB"; then
+  cp $K/doc/README.md $D/README.md
+else
+  touch -C 819 $D/README.md
+  sed "s/SAVLIB($DOCLIB)/SAVLIB($B)/g" $K/doc/README.md >> $D/README.md
+fi
+n=$(grep -c "SAVLIB($B)" $D/README.md)
+if test "$n" = "2"; then echo "README beside the save files: SAVLIB($B) in 2 commands -> OK" >> $L
+else echo "README beside the save files: SAVLIB($B) in $n commands, 2 expected -> FAILED (build/savlib.txt names $DOCLIB)" >> $L; fi
 for f in THIRD-PARTY-NOTICES.txt LICENSE; do rm -f $D/$f; if test -f $K/doc/$f; then cp $K/doc/$f $D/$f; fi; done
 if test ! -f $D/THIRD-PARTY-NOTICES.txt; then echo "NOT COPIED THIRD-PARTY-NOTICES.txt (run build/gen_notices.py)" >> $L; fi
 if test ! -f $D/LICENSE; then echo "NOT COPIED LICENSE (doc/LICENSE is missing)" >> $L; fi

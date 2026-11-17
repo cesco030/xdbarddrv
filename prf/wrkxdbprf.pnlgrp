@@ -714,12 +714,17 @@ profile cannot be used.
 Option 8 on the list adds it after a confirmation. It runs
 :XMP.
 ADDRDBDIRE RDB(name) RMTLOCNAME(*ARDPGM) ARDPGM(library/XDBARD)
+  TEXT('description')
 :EXMP.
 :P.
-with the library the driver is in. The entry is for the whole
-system. When it exists already, the option says so and changes
-nothing. Deleting a profile does not remove the entry; use the Work
-with RDB Directory Entries (WRKRDBDIRE) command for that.
+with the library the driver is in. The text of the entry, which the
+list of WRKRDBDIRE shows, is the description of the profile; for a
+profile without a description it is the database type and the host.
+The entry is for the whole system. When it exists already, the
+option says so and changes nothing, its text included&colon. a
+description changed later is brought there with CHGRDBDIRE RDB(name)
+TEXT('...'). Deleting a profile does not remove the entry; use the
+Work with RDB Directory Entries (WRKRDBDIRE) command for that.
 :EHELP.
 .* ---------------------------------------------------------------- test
 :HELP NAME='XDB/TEST'.
@@ -1181,9 +1186,9 @@ objects must be in the system ASP or a basic user ASP. QTEMP cannot
 be used either.
 :PT.Your special authorities
 :PD.
-Tells whether you have *SECADM and *ALLOBJ, which the two lines
-about the owner need. Without them, option 5 on those lines shows
-the commands for a security officer to run.
+Tells whether you have *SECADM and *ALLOBJ, which the lines about
+owners need. Without them, option 5 on those lines shows the
+commands for a security officer to run.
 :PT.System value QRETSVRSEC
 :PD.
 The system gives stored passwords back only when this value is 1.
@@ -1213,6 +1218,16 @@ is connected at that moment keeps the objects it has until it ends.
 The command and its help are pointed to the program and the panel
 group of this library (CHGCMD), so that they work without the
 library list.
+:PT.Objects have an owner of this system
+:PD.
+A restore gives an object to profile QDFTOWN, the default owner,
+when the profile that owned it where it was saved does not exist on
+this system. That is so with a package that was built by a profile
+of its own. The line gives every object of the package that is
+found with QDFTOWN as its owner to QPGMR, one CHGOBJOWN for each
+object, which needs the authority to change owners (in practice
+*ALLOBJ). The objects work in the meantime. The driver XDB is not
+among them&colon. it gets its owner in the last line.
 :PT.Owner profile
 :PD.
 The driver has to read the passwords for users who must not be able
@@ -1282,6 +1297,12 @@ first command that fails stops the line, and its message is shown.
 F12 leaves the line as it is. With option 5 nothing is run and Enter
 only closes the window.
 :P.
+A line with more commands than the window holds is shown in pages.
+The bottom line then says that more follows, and Enter shows the
+next page; the commands are run only after Enter on the last page,
+where the bottom line says so. F12 on any page leaves the line as it
+is.
+:P.
 A command that setup never runs itself, such as the change of a
 system value, is only shown, for the person who may run it.
 :EHELP.
@@ -1310,17 +1331,19 @@ with option 8.
 Restore the newer objects over the same library, with one parameter
 more than for the first restore&colon.
 :XMP.
-RSTOBJ OBJ(*ALL) SAVLIB(XDBBUILD) DEV(*SAVF) SAVF(...)
+RSTOBJ OBJ(*ALL) SAVLIB(CESCO2) DEV(*SAVF) SAVF(...)
   RSTLIB(library) ALWOBJDIF(*OWNER *FILELVL)
 :EXMP.
 :P.
-The parameter is needed because the driver belongs to the owner
-profile since the setup, and because the option dictionary and the
-two model files are made anew for every package. Without it the
-restore leaves these four objects out, and the old driver stays
-beside new programs; repeat the restore with the parameter then. It
-asks for special authority *ALLOBJ. The messages CPF370B and CPF3848
-are expected.
+The parameter is needed because objects of the library have another
+owner than those of the package (the driver belongs to the owner
+profile since the setup, and the others can differ too), and because
+the option dictionary and the two model files are made anew for
+every package. Without it the restore leaves those objects out, and
+old objects stay beside new ones; repeat the restore with the
+parameter then. It asks for special authority *ALLOBJ. The messages
+CPF370B, one for each object whose owner differs, and CPF3848 are
+expected.
 :P.
 Then start the program of the library (CALL library/XDBPRFM), press
 F9 and F10&colon. the lines about the binding, the command and the
@@ -1475,7 +1498,7 @@ CONNECT TO SALESPG.
 :HP2.Example 3&colon. Installing XDBARDDRV from a package:EHP2.
 :XMP.
 CRTLIB LIB(XDB)
-RSTOBJ OBJ(*ALL) SAVLIB(XDBBUILD) DEV(*SAVF) SAVF(QGPL/XDBSAVF)
+RSTOBJ OBJ(*ALL) SAVLIB(CESCO2) DEV(*SAVF) SAVF(QGPL/XDBSAVF)
        RSTLIB(XDB)
 ADDLIBLE LIB(XDB)
 WRKXDBPRF
