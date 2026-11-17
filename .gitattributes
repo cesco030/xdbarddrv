@@ -1,0 +1,3 @@
+# The sources are used on IBM i (QSH scripts, CPYFRMSTMF into source members): every file
+# keeps the line ends it has (LF), whatever system it is checked out on.
+* -text

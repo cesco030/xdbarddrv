@@ -1,0 +1,1504 @@
+.* WRKXDBPRF - help panel group of the command and of the displays of XDBPRFM.
+.* Source member WRKXDBPRFH in QXDBSRC; object WRKXDBPRF type *PNLGRP.
+.* CRTPNLGRP PNLGRP(lib/WRKXDBPRF) SRCFILE(lib/QXDBSRC) SRCMBR(WRKXDBPRFH)
+.* The command is created with HLPPNLGRP(lib/WRKXDBPRF) HLPID(*CMD).
+.* Display file XDBPRFD names the modules below in its help specifications
+.* (prf/gen_dds.py): one module for each field or part of a display, so that
+.* F1 shows the help of the place the cursor is in.  The help of the command
+.* imports all of them.  A module that is added or renamed here has to be
+.* added or renamed in gen_dds.py too (build/chk_help.py compares the two).
+.* In the text a colon is written &colon. and an ampersand &amp.
+:PNLGRP.
+.* ------------------------------------------------------------- command
+:HELP NAME='WRKXDBPRF'.
+Work with XDB Profiles - Help
+:P.
+The Work with XDB Profiles (WRKXDBPRF) command shows the connection
+profiles of XDBARDDRV and lets you add, change, copy, delete and test
+them.
+:P.
+XDBARDDRV lets SQL on this system work with databases that are not
+Db2. After CONNECT TO with the name of a profile, the SQL statements
+of interactive SQL or of a program run on a PostgreSQL, MySQL or
+Microsoft SQL Server database. The driver is native ILE code and runs
+inside the job that connects. XDBARDDRV is the name of the software;
+its objects carry the short prefix XDB.
+:P.
+A profile belongs to one relational database (RDB) name. It tells
+the driver where the database is, how to sign on, and how the data is
+to be given to Db2. The profiles are kept in files XDBPRF and XDBPRO
+and the passwords in validation list XDBVLDL. All three are in the
+library of the driver, which is shown at the top of the list.
+:P.
+The command has no parameters. It shows the list of the profiles.
+:P.
+The command is also the installer. After the objects of XDBARDDRV were
+restored into a library, F9 on the list shows the Setup display, which
+checks the installation in that library and does what is still to do.
+When the profile files are not there yet, the Setup display comes
+first.
+:P.
+:HP2.Restrictions&colon.:EHP2.
+:UL.
+:LI.
+To add, change or delete profiles you need *CHANGE authority to
+files XDBPRF and XDBPRO.
+:LI.
+To store or remove a password you need *CHANGE authority to
+validation list XDBVLDL.
+:LI.
+Passwords can only be stored when system value QRETSVRSEC (retain
+server security data) is 1.
+:LI.
+Option 8 runs the Add RDB Directory Entry (ADDRDBDIRE) command and
+needs the authority that command asks for.
+:LI.
+A change takes effect at the next CONNECT. A connection that is
+open keeps the settings it started with.
+:LI.
+The Setup display can be looked at by everybody. Its steps for the
+owner profile need *SECADM and *ALLOBJ special authority; the other
+steps need the authority to change the objects of the library.
+:EUL.
+:P.
+:HP2.Help on the displays&colon.:EHP2.
+On every display of the command, F1 shows the help for the field or
+the part of the display the cursor is in, and F2 in the help shows
+the help of the whole display.
+:P.
+:HP2.Topics of this help&colon.:EHP2.
+:UL COMPACT.
+:LI.The list of profiles and its options
+:LI.The fields of a profile
+:LI.The password
+:LI.The options of a profile and their keywords
+:LI.The RDB directory entry
+:LI.The connection test
+:LI.Using a profile from SQL and from a program
+:LI.Setup&colon. installing, moving and checking
+:LI.When something does not work
+:LI.Licence
+:EUL.
+:IMHELP NAME='XDB/LIST'.
+:IMHELP NAME='XDB/LIST/POS'.
+:IMHELP NAME='XDB/LIST/OPT'.
+:IMHELP NAME='XDB/LIST/KEYS'.
+:IMHELP NAME='XDB/PROFILE'.
+:IMHELP NAME='XDB/PRF/RDB'.
+:IMHELP NAME='XDB/PRF/TEXT'.
+:IMHELP NAME='XDB/PRF/TYPE'.
+:IMHELP NAME='XDB/PRF/STS'.
+:IMHELP NAME='XDB/PRF/HOST'.
+:IMHELP NAME='XDB/PRF/PORT'.
+:IMHELP NAME='XDB/PRF/DBNM'.
+:IMHELP NAME='XDB/PRF/USER'.
+:IMHELP NAME='XDB/PRF/PWD'.
+:IMHELP NAME='XDB/PRF/TLS'.
+:IMHELP NAME='XDB/PRF/TMO'.
+:IMHELP NAME='XDB/PRF/ALW'.
+:IMHELP NAME='XDB/PRF/CCSID'.
+:IMHELP NAME='XDB/PRF/TXTL'.
+:IMHELP NAME='XDB/PRF/NSCL'.
+:IMHELP NAME='XDB/PRF/TRC'.
+:IMHELP NAME='XDB/PRF/CHG'.
+:IMHELP NAME='XDB/PRF/KEYS'.
+:IMHELP NAME='XDB/PASSWORD'.
+:IMHELP NAME='XDB/OPTIONS'.
+:IMHELP NAME='XDB/OPT/LIST'.
+:IMHELP NAME='XDB/OPT/KEYS'.
+:IMHELP NAME='XDB/OPT/WIN'.
+:IMHELP NAME='XDB/OPT/KEY'.
+:IMHELP NAME='XDB/OPT/VAL'.
+:IMHELP NAME='XDB/OPT/ALL'.
+:IMHELP NAME='XDB/OPT/PG'.
+:IMHELP NAME='XDB/OPT/MYSQL'.
+:IMHELP NAME='XDB/OPT/MSSQL'.
+:IMHELP NAME='XDB/PROMPT'.
+:IMHELP NAME='XDB/CONFIRM'.
+:IMHELP NAME='XDB/RDBENTRY'.
+:IMHELP NAME='XDB/TEST'.
+:IMHELP NAME='XDB/SQL'.
+:IMHELP NAME='XDB/SETUP'.
+:IMHELP NAME='XDB/SETUP/OWN'.
+:IMHELP NAME='XDB/SETUP/OPT'.
+:IMHELP NAME='XDB/SETUP/LINES'.
+:IMHELP NAME='XDB/SETUP/STS'.
+:IMHELP NAME='XDB/SETUP/KEYS'.
+:IMHELP NAME='XDB/SETUP/CMD'.
+:IMHELP NAME='XDB/SETUP/HOW'.
+:IMHELP NAME='XDB/PROBLEMS'.
+:IMHELP NAME='XDB/LICENCE'.
+:EHELP.
+.* -------------------------------------------------------- all displays
+:HELP NAME='XDB/GENERAL'.
+XDBARDDRV profiles - Help
+:XH3.The displays of WRKXDBPRF
+:P.
+These displays keep the connection profiles of XDBARDDRV&colon. one
+profile for each database that SQL on this system reaches with
+CONNECT TO. They belong to program XDBPRFM, which is the program of
+command WRKXDBPRF and also the installer (F9=Setup on the list of
+profiles). The program works with the library it was started from;
+the library is shown at the top of the list.
+:P.
+:HP2.How the help works&colon.:EHP2.
+:UL COMPACT.
+:LI.
+F1 shows the help for the field, the column or the line of keys the
+cursor is in.
+:LI.
+F2 in the help shows the help of the whole display. On the list of
+profiles it also holds the topics about SQL, about problems and
+about the licence.
+:LI.
+F1 on the command WRKXDBPRF, typed on a command line, shows all of
+it in one piece.
+:EUL.
+:EHELP.
+.* ---------------------------------------------------------------- list
+:HELP NAME='XDB/LIST'.
+The list of profiles - Help
+:XH3.The list of profiles and its options
+:P.
+The list shows one line for each profile&colon. the RDB name, the
+database type (PG, MYSQL or MSSQL), the host, the database and the
+status (A active, D disabled).
+:EHELP.
+:HELP NAME='XDB/LIST/POS'.
+Position to - Help
+:XH4.Position to
+:P.
+Type the first characters of an RDB name and press Enter. The list
+starts at the first profile from that name on. Blank it out, or press
+F5, to see all profiles again.
+:EHELP.
+:HELP NAME='XDB/LIST/OPT'.
+Options of the list - Help
+:XH4.Options of the list
+:P.
+Type an option next to one or more profiles and press Enter.
+:PARML.
+:PT.2=Change
+:PD.
+Change the fields of the profile. The RDB name cannot be changed;
+use 3=Copy and then delete the old profile.
+:PT.3=Copy
+:PD.
+Add a profile with the same values under another RDB name. The
+options of the profile are copied too. The password is not copied;
+set it with F10 on the new profile.
+:PT.4=Delete
+:PD.
+Delete the profile after a confirmation. Its options and its stored
+password are deleted with it. The RDB directory entry is not touched;
+remove it with the Work with RDB Directory Entries (WRKRDBDIRE)
+command when it is no longer wanted.
+:PT.5=Display
+:PD.
+Show the profile without changing it. The password is never shown,
+only whether one is stored.
+:PT.7=Options
+:PD.
+Work with the options of the profile&colon. settings beyond the
+fields of the profile, most of them particular to one database type.
+:PT.8=RDB entry
+:PD.
+Add the RDB directory entry of the same name, which makes CONNECT TO
+call the driver.
+:PT.9=Test
+:PD.
+Connect to the database with the values of the profile and show the
+result.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/LIST/KEYS'.
+Function keys of the list - Help
+:XH4.Function keys
+:PARML.
+:PT.F1=Help
+:PD.
+Show the help for the place the cursor is in. F2 in the help shows
+the help of the whole display.
+:PT.F3=Exit
+:PD.End the command.
+:PT.F5=Refresh
+:PD.Read the profiles again and show all of them.
+:PT.F6=Add
+:PD.Add a profile.
+:PT.F9=Setup
+:PD.
+Show the Setup display with the checks of the installation in this
+library. A message on the list tells when the setup has something
+to do.
+:PT.F12=Cancel
+:PD.Go back to the previous display.
+:EPARML.
+:EHELP.
+.* ------------------------------------------------------------- profile
+:HELP NAME='XDB/PROFILE'.
+The fields of a profile - Help
+:XH3.The fields of a profile
+:P.
+The display is used to add a profile (F6 on the list), to change or
+copy one (options 2 and 3) and to show one (option 5, where nothing
+can be typed). Enter checks all fields and saves the profile; a
+field that is not accepted is shown in reverse image, with the
+reason on the message line.
+:P.
+F4 shows the values that can be chosen when the cursor is in
+Database type, Status, Encryption or Trace.
+:EHELP.
+:HELP NAME='XDB/PRF/RDB'.
+RDB name - Help
+:XH4.RDB name
+:P.
+The name used in CONNECT TO, up to 18 characters. It is also the
+name of the RDB directory entry (see option 8). It is typed when the
+profile is added and cannot be changed afterwards.
+:EHELP.
+:HELP NAME='XDB/PRF/TEXT'.
+Description - Help
+:XH4.Description
+:P.
+A text for the list of your databases. It has no effect.
+:EHELP.
+:HELP NAME='XDB/PRF/TYPE'.
+Database type - Help
+:XH4.Database type
+:P.
+PG for PostgreSQL, MYSQL for MySQL and compatible servers, MSSQL for
+Microsoft SQL Server.
+:EHELP.
+:HELP NAME='XDB/PRF/STS'.
+Status - Help
+:XH4.Status
+:P.
+A is active. D is disabled&colon. CONNECT TO is refused with SQLCODE
+-30061 until the profile is set to A again. Use D to close a database
+for a while without losing the profile.
+:EHELP.
+:HELP NAME='XDB/PRF/HOST'.
+Host - Help
+:XH4.Host
+:P.
+The host name or the IP address of the database server, without
+blanks. A long name continues on the second line; fill the first
+line before the second.
+:EHELP.
+:HELP NAME='XDB/PRF/PORT'.
+Port - Help
+:XH4.Port
+:P.
+The TCP port of the server. 0 means the usual port of the database
+type&colon. 5432 for PostgreSQL, 3306 for MySQL, 1433 for SQL Server.
+:EHELP.
+:HELP NAME='XDB/PRF/DBNM'.
+Database - Help
+:XH4.Database
+:P.
+The database on the server. Upper and lower case are kept as typed,
+and most servers tell them apart.
+:EHELP.
+:HELP NAME='XDB/PRF/USER'.
+User - Help
+:XH4.User
+:P.
+The user for the sign-on to the database server. It is a user of
+that server, not a user profile of this system. Upper and lower case
+are kept as typed. CONNECT TO name USER x USING y replaces the user
+and the password of the profile for that connection. The system
+hands the driver ten characters of each at most, so a longer user
+or password has to be stored in the profile.
+:EHELP.
+:HELP NAME='XDB/PRF/PWD'.
+Password - Help
+:XH4.Password
+:P.
+Shows whether a password is stored. F10 sets or removes it; see the
+topic about the password.
+:EHELP.
+:HELP NAME='XDB/PRF/TLS'.
+Encryption (TLS) - Help
+:XH4.Encryption (TLS)
+:P.
+Whether the connection to the database server is encrypted&colon.
+:PARML.
+:PT.*OFF
+:PD.The connection is not encrypted.
+:PT.*PREFER
+:PD.Encrypted when the server offers it, otherwise not.
+:PT.*REQUIRE
+:PD.
+Encrypted, or the connection fails. The certificate of the server is
+not checked.
+:PT.*VERIFY
+:PD.
+Encrypted, and the certificate of the server is checked. The
+connection fails when the certificate is not trusted.
+:EPARML.
+:P.
+An option of the profile can replace this field with the exact mode
+of the database client (sslmode, tls, encrypt).
+:EHELP.
+:HELP NAME='XDB/PRF/TMO'.
+Connect timeout - Help
+:XH4.Connect timeout
+:P.
+Seconds to wait for the server when the connection is opened. 0
+means 10.
+:EHELP.
+:HELP NAME='XDB/PRF/ALW'.
+Allowed users - Help
+:XH4.Allowed users
+:P.
+Who may connect with this profile. *ALL, the value of a new profile,
+lets every user of this system connect. Instead of *ALL, up to three
+user profiles or group profiles of this system can be named. A job
+can then connect only when the user it runs under is one of them, or
+has one of them as its group profile or as one of its supplemental
+groups. The names must exist when they are typed; upper and lower
+case make no difference.
+:P.
+The driver checks the list on every CONNECT, also when the statement
+gives USER and USING. Special authorities do not count&colon. a user
+with *ALLOBJ who is not in the list is refused as well, and so is
+option 9 of this command when it is run by such a user. A refused
+CONNECT ends with SQLCODE -30082 and SQLSTATE 28000, and message
+CPF9897 in the job log names the user and the profile.
+:P.
+The list is kept as option allowed_users of the profile. A list of
+more than three names is kept there, with option 7; this display
+then shows the first three names and does not change the list.
+Whoever may change file XDBPRO of the library may change the list.
+The file has public authority *USE&colon. every job can read the
+profiles, only the owner of the file and users with *ALLOBJ can
+change them.
+:EHELP.
+:HELP NAME='XDB/PRF/CCSID'.
+Column CCSID - Help
+:XH4.Column CCSID
+:P.
+The CCSID in which character data is given to Db2. 0 means the CCSID
+of the job, which is the usual choice. 65535 is not allowed.
+Characters that this CCSID does not have arrive as a substitution
+character; no error is reported for them.
+:EHELP.
+:HELP NAME='XDB/PRF/TXTL'.
+Text col. length - Help
+:XH4.Text col. length
+:P.
+The length given to character columns for which the server reports
+no length, such as text in PostgreSQL or varchar(max) in SQL Server.
+0 means 1000; the most is 32000. A longer value is cut at this
+length without a warning.
+:EHELP.
+:HELP NAME='XDB/PRF/NSCL'.
+Numeric scale - Help
+:XH4.Numeric scale
+:P.
+The number of decimals given to numeric columns for which the server
+reports no scale. The most is 20.
+:EHELP.
+:HELP NAME='XDB/PRF/TRC'.
+Trace - Help
+:XH4.Trace
+:P.
+Y writes every request of the connections of this profile to stream
+file /tmp/xdb_name.log, where name is the RDB name. The file grows
+and holds the text of the SQL statements, so set the trace back to N
+when the problem is found.
+:EHELP.
+:HELP NAME='XDB/PRF/CHG'.
+Last change - Help
+:XH4.Last change
+:P.
+When the profile was last changed and by whom.
+:EHELP.
+:HELP NAME='XDB/PRF/KEYS'.
+Function keys of a profile - Help
+:XH4.Function keys
+:PARML.
+:PT.F1=Help
+:PD.
+Show the help for the place the cursor is in. F2 in the help shows
+the help of the whole display.
+:PT.Enter
+:PD.Check and save the profile.
+:PT.F3=Exit
+:PD.Go back to the list without saving.
+:PT.F4=Prompt
+:PD.Show the values of the field the cursor is in.
+:PT.F10=Password
+:PD.
+Set or remove the password. A new profile must be saved with Enter
+first.
+:PT.F12=Cancel
+:PD.Go back without saving.
+:EPARML.
+:EHELP.
+.* ------------------------------------------------------------ password
+:HELP NAME='XDB/PASSWORD'.
+The password - Help
+:XH3.The password
+:P.
+F10 on a profile opens the password window. Type the new password
+and type it again on the repeat line; it is not shown. A password
+longer than 60 characters continues on the second line (characters
+61 to 120). Upper and lower case are kept as typed. Enter stores it.
+F10 in the window removes the stored password. F12 leaves it as it
+is.
+:P.
+The password is stored encrypted in validation list XDBVLDL, which
+is created with public authority *EXCLUDE. It is not in a file, is
+never shown, and cannot be read with a query. The driver reads it
+with the authority of its owner when a
+connection is opened and keeps it in the memory of the job while the
+connection is open, to open the connection again when the server
+has dropped it.
+:P.
+A profile can do without a stored password&colon.
+:UL.
+:LI.
+The program gives it on the connect&colon. CONNECT TO name USER x
+USING y.
+:LI.
+Option passfile names a stream file with lines of the form
+host&colon.port&colon.database&colon.user&colon.password.
+:EUL.
+:EHELP.
+.* ------------------------------------------------------------- options
+:HELP NAME='XDB/OPTIONS'.
+The options of a profile - Help
+:XH3.The options of a profile
+:P.
+Option 7 on the list shows the options of one profile. An option is
+a keyword with a value. Column K tells its kind&colon. C is a keyword
+handed to the database client when the connection is opened, D is a
+setting of the driver itself. A profile needs no options; add one
+only to change a behaviour.
+:P.
+F6 adds an option. F4 on the keyword shows the keywords that exist
+for the database type of the profile, with a description. F4 on the
+value shows the values a keyword accepts, when it has a fixed set.
+2=Change changes the value, 4=Delete removes the option.
+:EHELP.
+:HELP NAME='XDB/OPT/LIST'.
+The list of options - Help
+:XH4.The list of options
+:P.
+One line for each option of the profile&colon. the keyword, its kind
+in column K and its value. Type 2 next to an option to change its
+value, or 4 to delete it after a confirmation, and press Enter. F6
+adds an option. A long value is shown cut in the list; option 2
+shows it whole.
+:P.
+The keywords that exist, and what each of them does, are listed
+further on in this help (F2).
+:EHELP.
+:HELP NAME='XDB/OPT/KEYS'.
+Function keys of the options - Help
+:XH4.Function keys
+:PARML.
+:PT.F1=Help
+:PD.
+Show the help for the place the cursor is in. F2 in the help shows
+the help of the whole display.
+:PT.F3=Exit
+:PD.Go back to the list of profiles.
+:PT.F6=Add
+:PD.Add an option to the profile.
+:PT.F12=Cancel
+:PD.Go back to the list of profiles.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/OPT/WIN'.
+One option - Help
+:XH4.Adding or changing an option
+:P.
+The window shows one option of the profile. When an option is added
+(F6) the keyword and the value are typed; when it is changed (option
+2) only the value. Description, Values and Kind come from the
+dictionary of the keywords and are shown as soon as the keyword is
+known. Enter checks the option and saves it. F12 closes the window
+and leaves the options as they are.
+:P.
+A profile has every keyword once. To give a keyword another value,
+change the option that is there.
+:EHELP.
+:HELP NAME='XDB/OPT/KEY'.
+Keyword - Help
+:XH4.Keyword
+:P.
+The name of the option, in lower case. Only keywords of the
+dictionary are accepted, and only those that exist for the database
+type of the profile. F4 with the cursor in this field shows them
+with their descriptions; type 1 next to one to take it. The keyword
+of an option that is there cannot be changed&colon. delete the
+option and add another.
+:EHELP.
+:HELP NAME='XDB/OPT/VAL'.
+Value - Help
+:XH4.Value
+:P.
+The value of the option, up to 200 characters on four lines; fill a
+line before the next one. Upper and lower case are kept as typed.
+When the line Values shows a list of values, only one of them is
+accepted, and F4 with the cursor in the value shows the list to
+choose from. When it shows (any value), the keyword takes any value;
+the driver or the database client checks it when a connection is
+opened.
+:EHELP.
+:HELP NAME='XDB/OPT/ALL'.
+Keywords for every type - Help
+:XH4.Keywords for every database type
+:PARML.
+:PT.idle_check
+:PD.
+Seconds a connection may be idle before the driver tests it at the
+next statement. Without the option it is 2. When the test finds the
+connection gone, the driver opens it again; the program notices
+nothing unless a unit of work was open, in which case the statement
+fails with SQLCODE -911 and the unit of work is lost. 0 never tests.
+:PT.ping_timeout
+:PD.
+Seconds to wait for the answer to that test. Without the option it
+is 5.
+:PT.joblog
+:PD.
+Which errors of the database server are written to the job log as
+message CPF9897&colon. long (only texts too long for the SQL message,
+the default), all, or off.
+:PT.trim_char
+:PD.
+on (the default) removes the trailing blanks of fixed-length
+character host variables before they are sent. off sends them as
+they are.
+:PT.user_case
+:PD.
+The user given on CONNECT USER arrives in upper case from Db2. lower
+(the default) turns it to lower case, asis leaves it.
+:PT.product
+:PD.
+The product identifier reported to Db2, 8 characters. Leave it out
+unless a tool needs a particular one.
+:PT.passfile
+:PD.
+A stream file with passwords, used when none is stored; see the
+topic about the password.
+:PT.allowed_users
+:PD.
+The user profiles and group profiles that may connect with the
+profile, separated by blanks, or *ALL. It is the field Allowed users
+of the profile, whose help tells how the check works; use the
+option when more than three names are needed. Without the option
+every user may connect.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/OPT/PG'.
+Keywords for PostgreSQL - Help
+:XH4.Keywords for PostgreSQL (PG)
+:PARML.
+:PT.savepoints
+:PD.
+on (the default) sets a savepoint before every statement of a unit
+of work, so that a failing statement does not make PostgreSQL refuse
+all the following ones until the rollback. off leaves that out.
+:PT.long_values
+:PD.
+cut (the default) asks the server for no more than the text column
+length of long columns. full reads them whole; the driver still
+gives Db2 no more than the text column length.
+:PT.lob_direct
+:PD.
+For the file functions (GET_BLOB_FROM_FILE and the others)&colon.
+the largest value, in KB, that travels in one piece. The default
+is 4096, the limit 6144. A larger value is staged in a large object
+of the server and moved in pieces. 0 stages every value.
+:PT.sslmode
+:PD.
+The exact sslmode of the PostgreSQL client&colon. disable, allow,
+prefer, require, verify-ca or verify-full. It replaces the
+Encryption field.
+:PT.sslrootcert
+:PD.
+A stream file with the certificates of the certificate authorities
+that are trusted.
+:PT.application_name
+:PD.The name shown for the connection in pg_stat_activity.
+:PT.options
+:PD.
+Options for the server session, for example -c search_path=sales.
+:PT.keepalives_idle
+:PD.Seconds without traffic before TCP keepalive starts.
+:PT.target_session_attrs
+:PD.
+The kind of server wanted when the host is one of several&colon.
+any, read-write, read-only, primary or standby.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/OPT/MYSQL'.
+Keywords for MySQL - Help
+:XH4.Keywords for MySQL (MYSQL)
+:PARML.
+:PT.init_sql
+:PD.
+A statement run right after the connection is opened, for example
+to set the time zone or the SQL mode of the session.
+:PT.tls
+:PD.
+The exact TLS mode&colon. off, prefer, require or verify. It
+replaces the Encryption field.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/OPT/MSSQL'.
+Keywords for SQL Server - Help
+:XH4.Keywords for Microsoft SQL Server (MSSQL)
+:PARML.
+:PT.init_sql
+:PD.A statement run right after the connection is opened.
+:PT.encrypt
+:PD.
+The exact encryption mode&colon. off, prefer, on or strict. It
+replaces the Encryption field.
+:PT.tls_verify
+:PD.on checks the certificate of the server, off does not.
+:PT.tds
+:PD.
+7.1 forces the old protocol version, which SQL Server 2000 needs.
+:PT.charset
+:PD.
+The CCSID of varchar data, when the driver cannot tell it from the
+collation of the server.
+:PT.string_params
+:PD.
+The type in which character host variables are sent&colon. auto,
+varchar or nvarchar. varchar lets SQL Server use an index on a
+varchar column.
+:PT.datetime2
+:PD.
+on sends dates and times as date, time and datetime2. off sends
+them as datetime, for servers older than SQL Server 2008.
+:PT.appname
+:PD.The application name shown on the server.
+:EPARML.
+:EHELP.
+.* ------------------------------------------------------------- windows
+:HELP NAME='XDB/PROMPT'.
+Choosing a value - Help
+:XH4.Choosing a value (F4)
+:P.
+The window lists the values that can be put into the field the
+cursor was in. Type 1 next to one of them and press Enter; the value
+is put into the field. F12 closes the window and leaves the field as
+it is. Page down shows more values when the list ends with More.
+:EHELP.
+:HELP NAME='XDB/CONFIRM'.
+Confirmation - Help
+:XH4.Confirmation
+:P.
+The window says what is about to be done&colon. deleting a profile
+with its options and its stored password, deleting an option, or
+adding an RDB directory entry. Enter does it. F12 closes the window
+and nothing is done.
+:EHELP.
+.* ----------------------------------------------------------- RDB entry
+:HELP NAME='XDB/RDBENTRY'.
+The RDB directory entry - Help
+:XH3.The RDB directory entry
+:P.
+Db2 finds a remote database through the RDB directory. An entry
+with the RDB name of the profile and the driver program XDBARD as its
+program makes CONNECT TO that name call the driver. Without the entry the
+profile cannot be used.
+:P.
+Option 8 on the list adds it after a confirmation. It runs
+:XMP.
+ADDRDBDIRE RDB(name) RMTLOCNAME(*ARDPGM) ARDPGM(library/XDBARD)
+:EXMP.
+:P.
+with the library the driver is in. The entry is for the whole
+system. When it exists already, the option says so and changes
+nothing. Deleting a profile does not remove the entry; use the Work
+with RDB Directory Entries (WRKRDBDIRE) command for that.
+:EHELP.
+.* ---------------------------------------------------------------- test
+:HELP NAME='XDB/TEST'.
+The connection test - Help
+:XH3.The connection test
+:P.
+Option 9 on the list connects to the database exactly as a program
+would, through CONNECT TO, and shows the result in a window&colon.
+the version of the server when the connection was opened, or the
+SQLCODE, the SQLSTATE and the message of the server when it was not.
+The connection is closed again. Nothing is changed on the server.
+:P.
+The test needs the RDB directory entry (option 8) and uses the
+stored password.
+:EHELP.
+.* ----------------------------------------------------------------- SQL
+:HELP NAME='XDB/SQL'.
+Using a profile - Help
+:XH3.Using a profile from SQL and from a program
+:P.
+:HP2.Interactive SQL (STRSQL)&colon.:EHP2.
+:XMP.
+CONNECT TO name
+SELECT ... FROM schema.table
+COMMIT
+DISCONNECT name
+CONNECT RESET
+:EXMP.
+:P.
+The statements are written in the SQL of the server, with its names
+and its functions. A name with lower case letters is put between
+double quotation marks where the server asks for that.
+:P.
+:HP2.Connections&colon.:EHP2.
+:UL.
+:LI.
+A job can have several connections at the same time. SET CONNECTION
+name makes another one the current connection; open cursors of the
+one left behind stay open.
+:LI.
+A connection stays open until DISCONNECT, until RELEASE followed by
+COMMIT, or until the job or the activation group of the program
+ends.
+:LI.
+The connections run under commitment control. The first statement,
+a SELECT too, opens a unit of work on the server. DISCONNECT is
+refused with message SQL0428 while it is open&colon. run COMMIT or
+ROLLBACK first. Commit also before a session is left idle, because
+the open unit of work can hold locks on the server.
+:LI.
+COMMIT and ROLLBACK apply to all the connections of the unit of
+work, the local database included. A commit that cannot take place
+on a server fails as a whole&colon. see COMMIT and ROLLBACK below.
+:LI.
+CONNECT TO name USER x USING y signs on to the server with that
+user and password instead of those of the profile. Ten characters
+of each reach the driver; what is longer is cut without a message.
+The user arrives in upper case and is turned to lower case unless
+option user_case says asis. A profile that names its allowed users
+is checked in the same way with and without USER.
+:EUL.
+:P.
+:HP2.COMMIT and ROLLBACK&colon.:EHP2.
+:P.
+The driver takes part in the commit of the system, so that a commit
+which cannot take place on a server fails for the program.
+:UL.
+:LI.
+The first server connection decides the commit. The system prepares
+everything else, then the driver commits on that server; when that
+fails, the system rolls back everything else, the local database
+included. The local database and this one server are committed
+together or not at all.
+:LI.
+Every further server connection is asked, before anything is
+committed, whether its server is still there, and is committed after
+the first. A server that is gone makes the whole unit of work roll
+back.
+:LI.
+A connection that only read never makes a COMMIT fail by being
+lost.
+:EUL.
+:P.
+When the commit fails, COMMIT returns SQLCODE -175, SQLSTATE 58028,
+and the unit of work is rolled back everywhere. The job log has the
+reason from the driver in message CPF9897 (it starts with XDB and
+the name of the connection), followed by CPD83EC, CPD83D7, CPF83DB
+and SQL0175. SELECT * FROM XDB_LAST_ERROR shows the reason too. Run
+ROLLBACK, then run the unit of work again or stop.
+:P.
+The reasons&colon.
+:PARML.
+:PT.the connection to the server was lost before it
+:PD.
+The session ended since the last statement&colon. the server closed
+an idle session, a firewall dropped the connection, the server was
+restarted. What the unit of work changed on the server went with it.
+:PT.what this unit of work changed on the server was lost earlier
+:PD.
+A statement of this unit of work was already answered with SQLCODE
+-911. A unit of work that got -911 cannot be committed, whatever
+the program did after it.
+:PT.COMMIT refused by the server
+:PD.
+The server was asked and said no&colon. a constraint that is checked
+at the end, a conflict with another transaction, or on PostgreSQL
+with option savepoints off a statement that had failed.
+:PT.the server ended the session instead of committing
+:PD.
+The server answered the COMMIT with its last message and closed the
+session.
+:PT.whether it has committed is not known
+:PD.
+The connection broke while the server worked on the COMMIT. The
+rest is rolled back, but the server may have committed&colon. look at
+the data on the server.
+:EPARML.
+:P.
+A unit of work only reads on a connection when it runs nothing there
+but queries and SET or USE statements. A query counts as a change
+when its text has one of the words INSERT, UPDATE, DELETE, MERGE,
+INTO, CALL, EXEC, EXECUTE, NEXTVAL, SETVAL, CREATE, DROP, ALTER or
+TRUNCATE. A function that changes data and is called in a plain
+SELECT is not seen.
+:P.
+Not covered&colon. the second and further server connections are only
+asked whether their server is still there. A server that is there
+and then refuses its own commit (a constraint that is checked at the
+end, a conflict with another transaction), or that fails in the
+moment between the question and its commit, loses its changes while
+the rest is committed; message CPF9897 in the job log says so (THE
+REST OF THE UNIT OF WORK IS COMMITTED). Connect first to the server
+whose changes matter most. The servers are not asked for a real
+two-phase commit.
+:P.
+Program XDBLOST in the sources (test/xdblost.sqlrpgle) lets sessions
+end inside units of work and prints what COMMIT answers.
+:P.
+:HP2.Programs with embedded SQL&colon.:EHP2.
+:UL.
+:LI.
+Create the program with RDB(*LOCAL) and COMMIT(*CHG) on the
+CRTSQLRPGI command. The name of a relational database in place of
+*LOCAL works too, but is not needed&colon. no SQL package has to be
+made, and one program can connect to every profile. A program
+created with RDB(*NONE) cannot connect (SQL0862); on some systems
+that is what the command does when RDB is left out. COMMIT(*NONE)
+is not accepted (SQL5028).
+:LI.
+Use dynamic SQL&colon. PREPARE and EXECUTE, and for a query a cursor
+declared for a prepared statement, with parameter markers for the
+values.
+:LI.
+For a local table that is not journaled, add WITH NC to the
+statement, or use the record operations of the language, which do
+not depend on the current connection.
+:LI.
+To read many rows, fetch them in blocks&colon. FETCH cursor FOR n
+ROWS INTO a data structure array. Take the number of rows from
+SQLERRD(3); it can be less than n before the end. The driver brings
+up to 200 rows from the server with each exchange whatever n is,
+so a few hundred is enough.
+:LI.
+One program can read a server and fill a local table. With the
+record operations of the language on the local side the connection
+is never changed. With SQL on the local side change the connection
+once for each block of rows, not for each row, and write the block
+with one INSERT (INSERT INTO table n ROWS VALUES(array)). Commit
+at the end&colon. COMMIT closes the cursor on the server too.
+Program XDBETL in the sources (test/xdbetl.sqlrpgle) is a sample
+with three servers and the local database in one program.
+:EUL.
+:P.
+:HP2.Long values and large objects&colon.:EHP2.
+:UL.
+:LI.
+The interface of the system that the driver is called through does
+not carry large objects (BLOB, CLOB, DBCLOB). A column without a
+length limit, such as text, json or bytea in PostgreSQL or
+varchar(max) in SQL Server, arrives as a character value of the
+Text col. length of the profile, 32000 at most. What is longer is
+cut without a warning.
+:LI.
+Such a value can be fetched into a CLOB variable or into a CLOB file
+reference variable (SQLTYPE(CLOB_FILE) in RPG)&colon. Db2 writes the
+stream file. It holds the value as it arrived, cut at the same
+length.
+:LI.
+A bytea column of PostgreSQL arrives as text&colon. \x and two
+hexadecimal digits for every byte. It cannot be fetched into a BLOB
+variable or a BLOB file (SQL0303).
+:LI.
+A large object variable or a file reference variable cannot be the
+value of a parameter marker. With a file reference the statement
+fails with SQLCODE -804; message CPF9897 in the job log and
+XDB_LAST_ERROR tell which host variable it was. A CLOB or BLOB
+variable is refused by Db2 with SQL0311 before the driver is
+called. Pass the value in a character variable (VARCHAR), or use
+the file functions that follow.
+:EUL.
+:P.
+:HP2.Large values from and to stream files&colon.:EHP2.
+A value of megabytes cannot pass through a host variable, but it
+can pass beside Db2&colon. the statement names a stream file, and
+the driver moves the value between that file and the server, on the
+connection and in the unit of work of the statement. Four functions
+in the text of a statement ask for it, on PostgreSQL, MySQL and SQL
+Server connections alike. The examples are written for PostgreSQL;
+the rest of a statement is in the language of its server, so the
+name of a file is put together with CONCAT(...) on MySQL and with +
+on SQL Server.
+:XMP.
+INSERT INTO DOC (ID, BODY) VALUES(?, GET_BLOB_FROM_FILE(?))
+UPDATE DOC SET NOTE = GET_CLOB_FROM_FILE('/home/me/n.txt')
+  WHERE ID = 7
+SELECT ID, PUT_BLOB_TO_FILE(BODY, '/home/me/d' || ID || '.pdf')
+  FROM DOC WHERE YEAR = 2026
+SELECT PUT_CLOB_TO_FILE(NOTE, ?, 16, 1252) FROM DOC WHERE ID = ?
+:EXMP.
+:PARML.
+:PT.GET_BLOB_FROM_FILE(name), GET_CLOB_FROM_FILE(name)
+:PD.
+The bytes, or the text, of a stream file as a value, in a statement
+that returns no rows (INSERT, UPDATE, CALL). The names and the
+meaning are those of the functions of Db2 for i. name is a string
+or a parameter marker. Text is converted from the CCSID of the
+file.
+:PT.PUT_BLOB_TO_FILE(value, name, option)
+:PD.
+A column of the result of a query. Every row that is fetched writes
+its value to the file named by the second argument, which can be
+any expression of the server, also one built from other columns.
+The column itself is the number of bytes the file grew by, or null
+when the value is null; then no file is touched. option is
+optional and has the values of a file reference variable&colon. 8
+the file must not exist, 16 create or replace (the default), 32
+create or append. A new file has CCSID 65535.
+:PT.PUT_CLOB_TO_FILE(value, name, option, ccsid)
+:PD.
+The same for text. ccsid is optional and is the CCSID a new file
+gets; the default is 1208 (UTF-8), which loses no character. A
+file that exists keeps the CCSID it has&colon. text that replaces
+its content or is appended to it is converted to that CCSID.
+:EPARML.
+:UL.
+:LI.
+The functions are found in the statement text, so the statement
+must be dynamic&colon. PREPARE and EXECUTE, or a cursor on a
+prepared statement. In interactive SQL they can be typed as they
+are. PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE must be columns of the
+outermost SELECT, with no * in front of them.
+:LI.
+The files are opened as the user of the job, with the authority of
+that user. Others can read a new file, the owner can change it.
+The name of a file to write comes from the server with the row&colon.
+build it from values you trust.
+:LI.
+The job never holds more than a piece of a value, whatever its
+size. The limit is the one of the server.
+:LI.
+PostgreSQL&colon. a value up to option lob_direct (4 MB) travels in
+one piece. A larger one passes through a large object of the
+server, which the driver writes or reads in pieces of 1 MB and
+removes again in the same unit of work. The limit is 1 GB. On a
+server that only allows reading, values up to lob_direct can be
+written to files, larger ones not.
+:LI.
+MySQL and MariaDB&colon. a file is sent as the value of a parameter
+in pieces of 1 MB; a value for a file is written while its row
+arrives. The limit is max_allowed_packet of the server (64 MB by
+default on MySQL 8, 16 MB on MariaDB). A longer file is refused; a
+longer value to write ends the OPEN with SQLSTATE 54000.
+:LI.
+SQL Server 2005 and later&colon. a file is sent as a varbinary(max)
+or nvarchar(max) parameter in pieces; a value for a file is written
+while its row arrives. The limit is 2 GB.
+:LI.
+SQL Server 2000&colon. a file is sent as an image or ntext
+parameter, which is good for the columns of INSERT and UPDATE.
+PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE are not available there
+(SQLCODE -84).
+:LI.
+On MySQL and SQL Server a file is written by the fetch that reads
+its row, one row at a time. A file that was written to its end
+stays, also when another column of the same row then fails.
+:LI.
+PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE cannot be combined with UNION,
+EXCEPT or INTERSECT.
+:LI.
+Text read from a file must be valid in its CCSID. Text that is not
+is refused with SQLSTATE 22021 and the place of the first wrong
+byte.
+:LI.
+When a transfer fails, no half file is left&colon. a new or
+replaced file is removed, a file that was extended is cut back. A
+file that was written stays when the unit of work is rolled back.
+:LI.
+An error with a file is SQLCODE -452 (SQLSTATE 428A1) with the
+reason codes of message SQL0452&colon. 1 the name is not valid or
+names a directory, 2 the name is too long, 4 the file or its
+directory is not found, 5 the file exists and option 8 was given.
+No authority is SQLCODE -551, a file in use -913. Message CPF9897 in
+the job log names the file.
+:EUL.
+:P.
+:HP2.Errors&colon.:EHP2.
+For the usual errors, such as a name that is not found, a duplicate
+key or a syntax error, Db2 shows its own message. For the others it
+shows the class of the error with SQLCODE and SQLSTATE. The complete
+message of the server is in the job log when it is long, and
+:XMP.
+SELECT * FROM XDB_LAST_ERROR
+:EXMP.
+:P.
+returns the last error of the job&colon. SQLCODE, the SQLSTATE of the
+server, its error number, the database type, the RDB name and the
+whole message. In a program, GET DIAGNOSTICS CONDITION 1 gives the
+message text.
+:P.
+:HP2.What a connection is&colon.:EHP2.
+:XMP.
+SELECT * FROM XDB_CONNECTION_INFO
+:EXMP.
+:P.
+is answered by the driver itself, on any connection, without asking
+the server and without touching the unit of work. It returns rows
+of three columns, AREA, NAME and VALUE, with what the driver knows
+about the connection. It is there for finding the cause of a
+problem, and for a program that wants to know what kind of server
+it talks to. In a program the statement can also be written XDB
+CONNECTION INFO; prepare it and fetch its rows through a cursor.
+Only these two spellings are answered&colon. with a WHERE clause or
+a list of columns the statement goes to the server, which does not
+know the name.
+:P.
+The areas and the main rows of each&colon.
+:PARML.
+:PT.connection
+:PD.
+rdb, database_type (PostgreSQL, MySQL or SQL Server), host, port,
+database, user, profile (where it is kept), connected (when).
+:PT.link
+:PD.
+The connection to the server&colon. protocol, encryption (none, or
+the TLS level and the cipher), session_id (the number of the session
+on the server&colon. the process on PostgreSQL, the connection id on
+MySQL, the SPID on SQL Server), state.
+:PT.server
+:PD.
+product, version as the server reports it, version_number (major
+times 100 plus minor, on every server), and what else the server
+said when the connection was opened, such as its encoding, its time
+zone or the database of the session.
+:PT.session
+:PD.
+commit_mode, unit_of_work (none, open, open with changes, or that
+its changes are lost; while it is open DISCONNECT is refused),
+commit_resource (the part of the connection in a commit&colon. last
+agent, asked before the commit, or only told),
+commit_resource_refused (what the system did not allow, with its
+message), statements, open_cursors, seconds_since_last_statement.
+:PT.counters
+:PD.
+Since CONNECT&colon. reconnects (how often the driver opened the
+connection again after it was lost), last_reconnect,
+units_of_work_lost (how often that happened with a unit of work
+open), idle_checks, statements_prepared, statements_executed,
+rows_changed, cursors_opened, fetch_requests, rows_fetched,
+fetches_from_server, commits, commits_failed, rollbacks, errors.
+:PT.options
+:PD.
+The settings in effect&colon. text_len, numeric_scale, ccsid,
+trim_char, idle_check, ping_timeout, joblog, trace, and those only
+the database type has.
+:PT.limits
+:PD.
+Statements for a connection, parameters for a statement, columns
+of a result, connections for a job, rows for each exchange with the
+server.
+:PT.driver
+:PD.
+name, version (of the package the objects came from), built (when
+the code this job runs was compiled), library, job_ccsid,
+connections_in_job.
+:EPARML.
+:P.
+The rows are for people and for diagnosis, and they can change with
+a new version of the driver. A program takes the rows it needs by
+their names and goes on when one is missing. The row built tells
+whether a job still runs the code from before an update&colon. a job
+keeps the driver it has loaded until it ends. Program XDBINFO in
+the sources (test/xdbinfo.sqlrpgle) prints the rows and shows how a
+program picks single values.
+:EHELP.
+.* --------------------------------------------------------------- setup
+:HELP NAME='XDB/SETUP'.
+Setup - Help
+:XH3.Setup&colon. installing, moving and checking
+:P.
+XDBARDDRV works from any library of the system ASP. The library is not
+asked for&colon. it is the one the program was started from, shown at
+the top of the display. The Setup display looks at that library and
+lists, one line for each check, what is in order and what is still
+to do. Run it after the objects were restored from a package, after
+the library was renamed or its objects were moved, after a new
+version was restored over an old one, or whenever you want to know
+that everything is as it should be.
+:P.
+:HP2.Nothing is changed unseen&colon.:EHP2.
+What a line needs is a small number of CL commands. A window shows
+them, exactly as they will run, before anything happens, and they
+run only when you press Enter there. Every command is also written
+to the job log before it runs. When a command fails, the window says
+which one and shows the message; the commands after it are not run.
+Setup changes nothing outside the library except the owner profile,
+which it creates when you confirm that line. It never changes a
+system value, and it never touches profiles or passwords that are
+already there.
+:EHELP.
+:HELP NAME='XDB/SETUP/OWN'.
+Owner profile - Help
+:XH4.Owner profile (the field at the top)
+:P.
+The user profile that is to own the driver and the password list.
+Setup proposes XDBOWNER, or the profile that owns the driver already
+when the driver runs with the authority of its owner. Type another
+name and press Enter to have the lines checked for that profile.
+The line Owner profile of the list tells what the profile is for
+and how it is created.
+:EHELP.
+:HELP NAME='XDB/SETUP/OPT'.
+Options of the Setup display - Help
+:XH4.Options of the Setup display
+:P.
+Type an option next to a line and press Enter.
+:PARML.
+:PT.1=Do it
+:PD.
+Show the commands of the line and, after Enter, run them and show
+the result. F12 in the window leaves the line as it is.
+:PT.5=Show the commands
+:PD.
+Show the commands of the line without running anything.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/SETUP/LINES'.
+The lines of the setup - Help
+:XH4.The lines of the Setup display
+:P.
+Every line is one check of the installation in this library. The
+lines are done from top to bottom, because a line can need the
+one before it.
+:PARML.
+:PT.Library is in the system ASP
+:PD.
+Db2 calls the driver inside every job that connects. A library of an
+independent ASP is not there in jobs without that ASP group, so the
+objects must be in the system ASP or a basic user ASP. QTEMP cannot
+be used either.
+:PT.Your special authorities
+:PD.
+Tells whether you have *SECADM and *ALLOBJ, which the two lines
+about the owner need. Without them, option 5 on those lines shows
+the commands for a security officer to run.
+:PT.System value QRETSVRSEC
+:PD.
+The system gives stored passwords back only when this value is 1.
+With 0 no password can be stored in a profile; the databases can
+still be used with a password given on the connect or with a
+password file. The line shows the command; setup does not run it.
+:PT.Option dictionary XDBKWD
+:PD.The file with the option keywords, which comes with the package.
+:PT.Profile files XDBPRF and XDBPRO
+:PD.
+The files of the profiles and their options. They are never part of
+a package, so restoring a package cannot overwrite profiles. Setup
+creates them empty from the model files XDBPRFMDL and XDBPROMDL.
+:PT.Password list XDBVLDL
+:PD.
+The validation list with the encrypted passwords. It is never part
+of a package. Setup creates it with public authority *EXCLUDE.
+:PT.Driver bound to this library
+:PD.
+In a package the programs of the driver find their service programs
+through the library list. Setup binds them to the service programs
+of this library (UPDPGM and UPDSRVPGM with SRVPGMLIB), so that the
+driver works in every job whatever its library list is. A job that
+is connected at that moment keeps the objects it has until it ends.
+:PT.Command WRKXDBPRF
+:PD.
+The command and its help are pointed to the program and the panel
+group of this library (CHGCMD), so that they work without the
+library list.
+:PT.Owner profile
+:PD.
+The driver has to read the passwords for users who must not be able
+to read them themselves. For that it runs with the authority of the
+profile that owns it. Setup proposes profile XDBOWNER; another name
+can be typed at the top of the display. The profile is created with
+no password, so that nobody can sign on with it, with no special
+authority, and it owns nothing but the driver and the password
+list.
+:PT.Driver and passwords owned by it
+:PD.
+Service program XDB and validation list XDBVLDL are given to the
+owner profile, the public gets no authority to the list, and the
+service program is set to adopt the authority of its owner
+(CHGOBJOWN, GRTOBJAUT, CHGSRVPGM USRPRF(*OWNER)). A package comes
+without adoption; it is switched on here, where you see it.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/SETUP/STS'.
+Status of a line - Help
+:XH4.Status of a line
+:PARML.
+:PT.OK
+:PD.The check found everything in order.
+:PT.To do
+:PD.Setup can do it&colon. use option 1 on the line, or F10.
+:PT.A remark
+:PD.
+Something to know or to hand to somebody else, such as a system
+value. Option 5 shows the command when there is one.
+:PT.Failing
+:PD.
+The installation cannot work like this and setup cannot repair it,
+for example when the library is in an independent ASP or objects of
+the package are missing.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/SETUP/KEYS'.
+Function keys of the setup - Help
+:XH4.Function keys
+:PARML.
+:PT.F1=Help
+:PD.
+Show the help for the place the cursor is in. F2 in the help shows
+the help of the whole display.
+:PT.F3=Exit
+:PD.Leave the Setup display.
+:PT.F5=Check again
+:PD.Run all the checks again.
+:PT.F10=Do all that is to do
+:PD.
+Go through the lines that are to do, from top to bottom, each with
+its window and its confirmation. F12 skips a line, F3 stops.
+:PT.F12=Cancel
+:PD.Leave the Setup display.
+:EPARML.
+:EHELP.
+:HELP NAME='XDB/SETUP/CMD'.
+The commands of a line - Help
+:XH4.The window with the commands of a line
+:P.
+The window shows the CL commands a line of the Setup display needs,
+exactly as they will run, with a note above them that tells what
+they are for. With option 1 and with F10, Enter runs the commands
+and a second window shows for each of them whether it was done; the
+first command that fails stops the line, and its message is shown.
+F12 leaves the line as it is. With option 5 nothing is run and Enter
+only closes the window.
+:P.
+A command that setup never runs itself, such as the change of a
+system value, is only shown, for the person who may run it.
+:EHELP.
+:HELP NAME='XDB/SETUP/HOW'.
+Installing and removing - Help
+:XH4.Installing, updating, passwords afterwards, removing
+:P.
+:HP2.Installing from a package&colon.:EHP2.
+:OL.
+:LI.
+Create the library, for example XDB, and restore the objects of the
+package into it (RSTOBJ with RSTLIB).
+:LI.
+Add the library to the library list (ADDLIBLE) and run WRKXDBPRF.
+Until the command has been set up it finds its program through the
+library list.
+:LI.
+The Setup display comes by itself. Press F10 and confirm the lines.
+:LI.
+F3 leads to the list of profiles. Add the profiles, set their
+passwords, test them with option 9 and add the RDB directory entries
+with option 8.
+:EOL.
+:P.
+:HP2.Updating to a newer package&colon.:EHP2.
+Restore the newer objects over the same library, with one parameter
+more than for the first restore&colon.
+:XMP.
+RSTOBJ OBJ(*ALL) SAVLIB(XDBBUILD) DEV(*SAVF) SAVF(...)
+  RSTLIB(library) ALWOBJDIF(*OWNER *FILELVL)
+:EXMP.
+:P.
+The parameter is needed because the driver belongs to the owner
+profile since the setup, and because the option dictionary and the
+two model files are made anew for every package. Without it the
+restore leaves these four objects out, and the old driver stays
+beside new programs; repeat the restore with the parameter then. It
+asks for special authority *ALLOBJ. The messages CPF370B and CPF3848
+are expected.
+:P.
+Then start the program of the library (CALL library/XDBPRFM), press
+F9 and F10&colon. the lines about the binding, the command and the
+owner are to do again, and connections may fail until they are done.
+The profiles, their options and their passwords are kept.
+:P.
+:HP2.Who can store passwords afterwards&colon.:EHP2.
+The password list belongs to the owner profile and the public has
+no authority to it. A person who keeps the profiles needs *CHANGE
+authority to XDBVLDL, or *ALLOBJ, to store or remove a password.
+:P.
+:HP2.Removing XDBARDDRV&colon.:EHP2.
+Remove the RDB directory entries of the profiles (WRKRDBDIRE),
+delete the library, and delete the owner profile.
+:EHELP.
+.* ------------------------------------------------------------ problems
+:HELP NAME='XDB/PROBLEMS'.
+When something does not work - Help
+:XH3.When something does not work
+:PARML.
+:PT.CONNECT fails
+:PD.
+Run option 9 on the profile; its window shows the answer of the
+server. SQLCODE -30061 means that the profile is disabled or
+missing, or that the server does not have the database. -30080
+means that the server was not reached (host, port, firewall, TLS).
+-30082 means that the server refused the user or the password, that
+the stored password could not be read, or that the user of the job
+is not among the allowed users of the profile. The reason is in the
+job log, in message CPF9897, unless option joblog of the profile is
+off.
+:PT.CONNECT is refused for some users only
+:PD.
+Message CPF9897 in the job log says that the user is not among the
+users allowed for the profile. Look at Allowed users of the profile
+(option 2), or at option allowed_users (option 7)&colon. the user of
+the job has to be named there, or be a member of a group profile
+named there.
+:PT.A large object cannot be read or written
+:PD.
+Large object variables do not work with these connections. Use the
+file functions (GET_BLOB_FROM_FILE, PUT_BLOB_TO_FILE and the two
+for text)&colon. see the parts about long values and about large
+values from and to stream files in the topic about using a profile
+from SQL.
+:PT.SQLCODE -452 with a file function
+:PD.
+The file could not be read or written. Message CPF9897 in the job
+log names the file and the reason; SELECT * FROM XDB_LAST_ERROR
+shows the same text. A name without a directory is looked for in
+the current directory of the job.
+:PT.A local program cannot connect (SQL0862)
+:PD.
+The program was created with RDB(*NONE). Create it again with
+RDB(*LOCAL) COMMIT(*CHG).
+:PT.Relational database not in the directory
+:PD.
+The RDB directory entry is missing; use option 8.
+:PT.Characters arrive wrong
+:PD.
+Check Column CCSID. A character the CCSID does not have cannot be
+shown. Line ends and tabs inside a text are kept as control
+characters, which a 5250 display cannot show.
+:PT.A text is cut
+:PD.
+Raise Text col. length, up to 32000.
+:PT.A statement fails after a pause
+:PD.
+The server dropped the idle connection while a unit of work was
+open (SQLCODE -911). Run ROLLBACK and start the unit of work again;
+a COMMIT would be refused. Commit before long pauses.
+:PT.COMMIT fails with SQLCODE -175
+:PD.
+The commit could not take place on a server and the whole unit of
+work was rolled back. Message CPF9897 in the job log, just before
+CPD83EC, tells which connection and why; SELECT * FROM
+XDB_LAST_ERROR shows the same. See COMMIT and ROLLBACK in the topic
+about using a profile from SQL.
+:PT.The job log ends with MCH3601, CPF8367 and CPF9999
+:PD.
+A job that has used the local database and a connection through
+the driver gets these messages, with CPF4404 and CPF93B7, once when
+it ends. They come from the system after everything was committed
+or rolled back, and the job ends normally. Nothing has to be done;
+see Limits in the README.
+:PT.The list says the setup is not complete
+:PD.
+Press F9. The lines that are not OK tell what is missing; see the
+topic about the setup.
+:PT.Connections fail in some jobs only
+:PD.
+The driver may still be bound through the library list, which those
+jobs do not have. Press F9 and look at the line about the binding.
+:PT.Nothing explains it
+:PD.
+Set Trace to Y, repeat the failing step, and read
+/tmp/xdb_name.log. Set Trace back to N afterwards.
+:EPARML.
+:EHELP.
+.* ------------------------------------------------------------- licence
+:HELP NAME='XDB/LICENCE'.
+Licence - Help
+:XH3.Licence
+:P.
+XDBARDDRV is published under the MIT licence, Copyright (c) 2026
+cesco. Anyone may use, change and pass on the software, also as part
+of something else, as long as the copyright line and the text of the
+licence stay with every copy. The software comes as it is, without
+warranty of any kind, and its author is not liable for what is done
+with it. It is experimental&colon. try it on test data before you rely
+on it.
+:P.
+Service program LIBPQ is built from the client library libpq of
+PostgreSQL and is under the PostgreSQL Licence; some of its files
+carry in addition the notice of their first authors. These notices
+ask that their text stays with every copy.
+:P.
+The texts are in the files LICENSE and THIRD-PARTY-NOTICES.txt, which
+come with the save files of the package and are in the sources, and
+in source file XDBLICENSE of this library (members LICENSE and
+NOTICES). Pass them on together with the software.
+:EHELP.
+.* ------------------------------------------------------------ examples
+:HELP NAME='WRKXDBPRF/COMMAND/EXAMPLES'.
+Examples for WRKXDBPRF - Help
+:XH3.Examples for WRKXDBPRF
+:P.
+:HP2.Example 1&colon. Showing the profiles:EHP2.
+:XMP.
+WRKXDBPRF
+:EXMP.
+:P.
+This command shows the list of the connection profiles.
+:P.
+:HP2.Example 2&colon. Making a PostgreSQL database available:EHP2.
+:OL.
+:LI.
+Run WRKXDBPRF and press F6. Type RDB name SALESPG, database type
+PG, the host, the database and the user, and press Enter.
+:LI.
+Press F10 and type the password twice.
+:LI.
+Back on the list, type 9 next to SALESPG. The window shows the
+version of the server.
+:LI.
+Type 8 next to SALESPG to add the RDB directory entry.
+:LI.
+In interactive SQL, or in a program created with RDB(SALESPG), run
+CONNECT TO SALESPG.
+:EOL.
+:P.
+:HP2.Example 3&colon. Installing XDBARDDRV from a package:EHP2.
+:XMP.
+CRTLIB LIB(XDB)
+RSTOBJ OBJ(*ALL) SAVLIB(XDBBUILD) DEV(*SAVF) SAVF(QGPL/XDBSAVF)
+       RSTLIB(XDB)
+ADDLIBLE LIB(XDB)
+WRKXDBPRF
+:EXMP.
+:P.
+The Setup display is shown because the profile files are not there
+yet. F10 goes through what is to do; every step shows its commands
+and waits for Enter.
+:P.
+:HP2.Example 4&colon. Closing a database for a while:EHP2.
+:P.
+Type 2 next to the profile and set Status to D. Every CONNECT TO is
+refused until the status is A again. Connections that are open go
+on.
+:EHELP.
+.* -------------------------------------------------------------- errors
+:HELP NAME='WRKXDBPRF/ERROR/MESSAGES'.
+Error messages for WRKXDBPRF - Help
+:XH3.Error messages for WRKXDBPRF
+:P.
+:HP3.*ESCAPE Messages:EHP3.
+:P.
+None. What the command has to say is shown on the message line of
+its displays.
+:EHELP.
+:EPNLGRP.

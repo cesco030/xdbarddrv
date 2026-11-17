@@ -1,0 +1,53 @@
+     A* XDBPRF - XDB connection profiles, one record per RDB name.
+     A* Kept with WRKXDBPRF. The password is not here: it is an entry of
+     A* validation list XDBVLDL. Character and zoned fields only, the
+     A* driver reads the record as it is (xdbprf.h).
+     A                                      UNIQUE
+     A          R XDBPRFR                   TEXT('XDB connection profile')
+     A            PRRDB         18A         TEXT('RDB directory entry name')
+     A                                      COLHDG('RDB name')
+     A            PRTYPE        10A         TEXT('Database type: PG MYSQL MSSQL-
+     A                                      ')
+     A                                      COLHDG('Database' 'type')
+     A            PRSTS          1A         TEXT('Status: A=Active D=Disabled')
+     A                                      COLHDG('Sts')
+     A            PRTEXT        50A         TEXT('Description')
+     A                                      COLHDG('Description')
+     A            PRHOST       120A         TEXT('Host name or IP address')
+     A                                      COLHDG('Host')
+     A            PRPORT         5S 0       TEXT('TCP port, 0 = default of the -
+     A                                      type')
+     A                                      COLHDG('Port')
+     A            PRDBNM        60A         TEXT('Database name on the server')
+     A                                      COLHDG('Database')
+     A            PRUSER        60A         TEXT('User on the server')
+     A                                      COLHDG('User')
+     A            PRPWDS         1A         TEXT('Password stored in XDBVLDL: Y-
+     A                                       N')
+     A                                      COLHDG('Pwd' 'stored')
+     A            PRTLS         10A         TEXT('Encryption: *OFF *PREFER *REQ-
+     A                                      UIRE *VERIFY')
+     A                                      COLHDG('Encryption')
+     A            PRTMO          3S 0       TEXT('Connect timeout in seconds')
+     A                                      COLHDG('Connect' 'timeout')
+     A            PRCCSID        5S 0       TEXT('CCSID of character columns, 0-
+     A                                       = job')
+     A                                      COLHDG('Column' 'CCSID')
+     A            PRTXTL         5S 0       TEXT('Length of text columns withou-
+     A                                      t length')
+     A                                      COLHDG('Text' 'length')
+     A            PRNSCL         2S 0       TEXT('Scale of numeric columns with-
+     A                                      out scale')
+     A                                      COLHDG('Numeric' 'scale')
+     A            PRTRC          1A         TEXT('Trace to /tmp/xdb_<rdb>.log: -
+     A                                      Y N')
+     A                                      COLHDG('Trace')
+     A            PRCRTU        10A         TEXT('Created by')
+     A                                      COLHDG('Created' 'by')
+     A            PRCRTT          Z         TEXT('Created at')
+     A                                      COLHDG('Created' 'at')
+     A            PRCHGU        10A         TEXT('Changed by')
+     A                                      COLHDG('Changed' 'by')
+     A            PRCHGT          Z         TEXT('Changed at')
+     A                                      COLHDG('Changed' 'at')
+     A          K PRRDB                     

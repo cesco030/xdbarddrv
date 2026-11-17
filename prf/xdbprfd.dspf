@@ -1,0 +1,586 @@
+     A* XDBPRFD - display file of WRKXDBPRF (program XDBPRFM):
+     A* work with XDB connection profiles.
+     A*
+     A* Indicators  03 05 06 04 10 12  function keys
+     A*             31-34  profile list     35-38  prompt list
+     A*             71-74  option list      44 option kept for the next read
+     A*             75-78  setup list       09 function key Setup
+     A*             45 46 48  option in error
+     A*             81-84  status of a setup line: in order, to do, failing,
+     A*                    remark
+     A*             40 key protected  41 all protected  47 keyword protected
+     A*             51-65  field in error   90  message is an error
+     A*
+     A* Help: F1 is the Help key.  The help specifications (H) name the help
+     A* modules of panel group WRKXDBPRF, which the system looks for through
+     A* the library list: XDBPRFM puts its library there while it runs.  The
+     A* module names are checked against the panel group by build/chk_help.py.
+     A                                      DSPSIZ(24 80 *DS3)
+     A                                      INDARA
+     A                                      PRINT
+     A                                      CA03(03 'Exit')
+     A                                      CA12(12 'Cancel')
+     A                                      HELP
+     A                                      ALTHELP(CA01)
+     A                                      HLPTITLE('XDBARDDRV profiles')
+     A                                      HLPPNLGRP('XDB/GENERAL' WRKXDBPRF)
+     A*
+     A* List of profiles
+     A          R SFL1                      SFL
+     A  44                                  SFLNXTCHG
+     A            S1OPT          1A  B  9  3
+     A  45                                  DSPATR(RI PC)
+     A            S1RDB         18A  O  9  7
+     A            S1TYPE         6A  O  9 27
+     A            S1HOST        26A  O  9 35
+     A            S1DBNM        14A  O  9 63
+     A            S1STS          1A  O  9 79
+     A          R CTL1                      SFLCTL(SFL1)
+     A                                      SFLSIZ(0013)
+     A                                      SFLPAG(0012)
+     A                                      OVERLAY
+     A                                      CF05(05 'Refresh')
+     A                                      CF06(06 'Add')
+     A                                      CF09(09 'Setup')
+     A  31                                  SFLDSP
+     A  32                                  SFLDSPCTL
+     A  33                                  SFLCLR
+     A  34                                  SFLEND(*MORE)
+     A          H                           HLPPNLGRP('XDB/LIST' WRKXDBPRF)
+     A                                      HLPARA(1 1 3 80)
+     A          H                           HLPPNLGRP('XDB/LIST/POS' WRKXDBPRF)
+     A                                      HLPARA(4 1 5 80)
+     A          H                           HLPPNLGRP('XDB/LIST/OPT' WRKXDBPRF)
+     A                                      HLPARA(6 1 21 80)
+     A            S1RRN          4S 0H      SFLRCDNBR(CURSOR)
+     A                                  1  2'XDBPRFM'
+     A                                      COLOR(BLU)
+     A                                  1 24'Work with XDB Connection Profiles'
+     A                                      DSPATR(HI)
+     A                                  1 72DATE
+     A                                      EDTCDE(Y)
+     A                                      COLOR(BLU)
+     A            C1USER        10A  O  2  2COLOR(BLU)
+     A                                  2 24'Library . . :'
+     A                                      COLOR(BLU)
+     A            C1LIB         10A  O  2 38COLOR(BLU)
+     A                                  2 72TIME
+     A                                      COLOR(BLU)
+     A                                  4  2'Position to  . . . . .'
+     A            C1POS         18A  B  4 26
+     A                                  4 46'RDB name'
+     A                                  6  2'Type options, press Enter.'
+     A                                      COLOR(BLU)
+     A                                  7  4'2=Change  3=Copy  4=Delete  5=Disp-
+     A                                      lay  7=Options  8=RDB entry  9=Test'
+     A                                      COLOR(BLU)
+     A                                  8  2'Opt'
+     A                                      DSPATR(HI)
+     A                                  8  7'RDB name'
+     A                                      DSPATR(HI)
+     A                                  8 27'Type'
+     A                                      DSPATR(HI)
+     A                                  8 35'Host'
+     A                                      DSPATR(HI)
+     A                                  8 63'Database'
+     A                                      DSPATR(HI)
+     A                                  8 78'Sts'
+     A                                      DSPATR(HI)
+     A          R FOOT1                     
+     A          H                           HLPPNLGRP('XDB/LIST/KEYS' WRKXDBPRF)
+     A                                      HLPARA(*RCD)
+     A          H                           HLPPNLGRP('XDB/RDBENTRY' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/TEST' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/SQL' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/PROBLEMS' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/LICENCE' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A                                 23  2'F1=Help   F3=Exit   F5=Refresh   F-
+     A                                      6=Add   F9=Setup   F12=Cancel'
+     A                                      COLOR(BLU)
+     A            F1MSG         78A  O 24  2
+     A  90                                  COLOR(RED)
+     A N90                                  COLOR(WHT)
+     A*
+     A* One profile: add, change, copy, display
+     A          R PRFDTL                    
+     A                                      CF04(04 'Prompt')
+     A                                      CF10(10 'Password')
+     A                                      CHGINPDFT
+     A                                      RTNCSRLOC(&D1CREC &D1CFLD)
+     A          H                           HLPPNLGRP('XDB/PROFILE' WRKXDBPRF)
+     A                                      HLPARA(1 1 2 80)
+     A          H                           HLPPNLGRP('XDB/PRF/RDB' WRKXDBPRF)
+     A                                      HLPARA(3 1 3 80)
+     A          H                           HLPPNLGRP('XDB/PRF/TEXT' WRKXDBPRF)
+     A                                      HLPARA(4 1 4 80)
+     A          H                           HLPPNLGRP('XDB/PRF/TYPE' WRKXDBPRF)
+     A                                      HLPARA(5 1 5 80)
+     A          H                           HLPPNLGRP('XDB/PRF/STS' WRKXDBPRF)
+     A                                      HLPARA(6 1 6 80)
+     A          H                           HLPPNLGRP('XDB/PRF/HOST' WRKXDBPRF)
+     A                                      HLPARA(7 1 9 80)
+     A          H                           HLPPNLGRP('XDB/PRF/PORT' WRKXDBPRF)
+     A                                      HLPARA(10 1 10 80)
+     A          H                           HLPPNLGRP('XDB/PRF/DBNM' WRKXDBPRF)
+     A                                      HLPARA(11 1 11 80)
+     A          H                           HLPPNLGRP('XDB/PRF/USER' WRKXDBPRF)
+     A                                      HLPARA(12 1 12 80)
+     A          H                           HLPPNLGRP('XDB/PRF/PWD' WRKXDBPRF)
+     A                                      HLPARA(13 1 13 80)
+     A          H                           HLPPNLGRP('XDB/PRF/TLS' WRKXDBPRF)
+     A                                      HLPARA(14 1 14 80)
+     A          H                           HLPPNLGRP('XDB/PRF/TMO' WRKXDBPRF)
+     A                                      HLPARA(15 1 15 80)
+     A          H                           HLPPNLGRP('XDB/PRF/ALW' WRKXDBPRF)
+     A                                      HLPARA(16 1 16 80)
+     A          H                           HLPPNLGRP('XDB/PRF/CCSID' WRKXDBPRF)
+     A                                      HLPARA(17 1 17 80)
+     A          H                           HLPPNLGRP('XDB/PRF/TXTL' WRKXDBPRF)
+     A                                      HLPARA(18 1 18 80)
+     A          H                           HLPPNLGRP('XDB/PRF/NSCL' WRKXDBPRF)
+     A                                      HLPARA(19 1 19 80)
+     A          H                           HLPPNLGRP('XDB/PRF/TRC' WRKXDBPRF)
+     A                                      HLPARA(20 1 20 80)
+     A          H                           HLPPNLGRP('XDB/PRF/CHG' WRKXDBPRF)
+     A                                      HLPARA(21 1 21 80)
+     A          H                           HLPPNLGRP('XDB/PRF/KEYS' WRKXDBPRF)
+     A                                      HLPARA(22 1 23 80)
+     A            D1CREC        10A  H      
+     A            D1CFLD        10A  H      
+     A                                  1  2'XDBPRFM'
+     A                                      COLOR(BLU)
+     A            D1TITLE       40A  O  1 21DSPATR(HI)
+     A                                  3  2'RDB name . . . .'
+     A            D1RDB         18A  B  3 19
+     A  40                                  DSPATR(PR)
+     A N40                                  DSPATR(UL)
+     A  51                                  DSPATR(RI PC)
+     A                                  3 40'Name of the RDB directory entry'
+     A                                      COLOR(BLU)
+     A                                  4  2'Description  . .'
+     A            D1TEXT        50A  B  4 19CHECK(LC)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  50                                  DSPATR(RI PC)
+     A                                  5  2'Database type  .'
+     A            D1TYPE        10A  B  5 19
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  52                                  DSPATR(RI PC)
+     A                                  5 32'PG, MYSQL, MSSQL  (F4)'
+     A                                      COLOR(BLU)
+     A                                  6  2'Status . . . . .'
+     A            D1STS          1A  B  6 19
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  53                                  DSPATR(RI PC)
+     A                                  6 23'A=Active, D=Disabled'
+     A                                      COLOR(BLU)
+     A                                  8  2'Host . . . . . .'
+     A            D1HOST1       60A  B  8 19CHECK(LC)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  54                                  DSPATR(RI PC)
+     A            D1HOST2       60A  B  9 19CHECK(LC)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  54                                  DSPATR(RI)
+     A                                 10  2'Port . . . . . .'
+     A            D1PORT         5Y 0B 10 19EDTCDE(Z)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  55                                  DSPATR(RI PC)
+     A                                 10 27'0 = default port of the database t-
+     A                                      ype'
+     A                                      COLOR(BLU)
+     A                                 11  2'Database . . . .'
+     A            D1DBNM        60A  B 11 19CHECK(LC)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  56                                  DSPATR(RI PC)
+     A                                 12  2'User . . . . . .'
+     A            D1USER        60A  B 12 19CHECK(LC)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  57                                  DSPATR(RI PC)
+     A                                 13  2'Password . . . :'
+     A            D1PWDT        12A  O 13 19DSPATR(HI)
+     A                                 13 34'F10=Set or remove the password'
+     A                                      COLOR(BLU)
+     A                                 14  2'Encryption (TLS)'
+     A            D1TLS         10A  B 14 19
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  58                                  DSPATR(RI PC)
+     A                                 14 32'*OFF *PREFER *REQUIRE *VERIFY  (F4-
+     A                                      )'
+     A                                      COLOR(BLU)
+     A                                 15  2'Connect timeout'
+     A            D1TMO          3Y 0B 15 19EDTCDE(Z)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  59                                  DSPATR(RI PC)
+     A                                 15 25'Seconds, 0 = 10'
+     A                                      COLOR(BLU)
+     A                                 16  2'Allowed users  .'
+     A            D1ALW1        10A  B 16 19
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  66                                  DSPATR(RI PC)
+     A            D1ALW2        10A  B 16 31
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  67                                  DSPATR(RI PC)
+     A            D1ALW3        10A  B 16 43
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  68                                  DSPATR(RI PC)
+     A                                 16 55'Users or groups, or *ALL'
+     A                                      COLOR(BLU)
+     A                                 17  2'Column CCSID . .'
+     A            D1CCSID        5Y 0B 17 19EDTCDE(Z)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  60                                  DSPATR(RI PC)
+     A                                 17 27'0 = job CCSID, 1208 = UTF-8'
+     A                                      COLOR(BLU)
+     A                                 18  2'Text col. length'
+     A            D1TXTL         5Y 0B 18 19EDTCDE(Z)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  61                                  DSPATR(RI PC)
+     A                                 18 27'For text columns without a length'
+     A                                      COLOR(BLU)
+     A                                 19  2'Numeric scale  .'
+     A            D1NSCL         2Y 0B 19 19EDTCDE(3)
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  62                                  DSPATR(RI PC)
+     A                                 19 24'Decimals of numerics without a sca-
+     A                                      le'
+     A                                      COLOR(BLU)
+     A                                 20  2'Trace  . . . . .'
+     A            D1TRC          1A  B 20 19
+     A  41                                  DSPATR(PR)
+     A N41                                  DSPATR(UL)
+     A  63                                  DSPATR(RI PC)
+     A                                 20 23'Y=Yes, N=No   File /tmp/xdb_<RDB>.-
+     A                                      log'
+     A                                      COLOR(BLU)
+     A                                 21  2'Last change  . :'
+     A            D1CHG         40A  O 21 19COLOR(BLU)
+     A            D1KEYS        78A  O 23  2COLOR(BLU)
+     A            D1MSG         78A  O 24  2
+     A  90                                  COLOR(RED)
+     A N90                                  COLOR(WHT)
+     A*
+     A* Password window
+     A          R PWDWIN                    
+     A                                      WINDOW(8 6 11 66)
+     A                                      WDWBORDER((*COLOR BLU))
+     A                                      CF10(10 'Remove')
+     A          H                           HLPPNLGRP('XDB/PASSWORD' WRKXDBPRF)
+     A                                      HLPARA(*RCD)
+     A                                  1  2'Password of profile'
+     A            W1RDB         18A  O  1 22DSPATR(HI)
+     A                                  3  2'New password (it is not shown; sec-
+     A                                      ond line = characters 61-120)'
+     A            W1P1A         60A  B  4  3CHECK(LC)
+     A                                      DSPATR(ND)
+     A                                      DSPATR(PC)
+     A            W1P1B         60A  B  5  3CHECK(LC)
+     A                                      DSPATR(ND)
+     A                                  6  2'Repeat the new password'
+     A            W1P2A         60A  B  7  3CHECK(LC)
+     A                                      DSPATR(ND)
+     A            W1P2B         60A  B  8  3CHECK(LC)
+     A                                      DSPATR(ND)
+     A                                  9  2'F1=Help   Enter=Store   F10=Remove-
+     A                                       the password   F12=Cancel'
+     A                                      COLOR(BLU)
+     A            W1MSG         62A  O 10  2
+     A  90                                  COLOR(RED)
+     A N90                                  COLOR(WHT)
+     A*
+     A* Prompt window: a list to choose one value from
+     A          R PMTWIN                    
+     A                                      WINDOW(5 8 14 62)
+     A                                      WDWBORDER((*COLOR BLU))
+     A                                 13  2'1=Select   F1=Help   F12=Cancel'
+     A                                      COLOR(BLU)
+     A          R PMTSFL                    SFL
+     A            PMOPT          1A  B  4  2
+     A            PMVAL         20A  O  4  6
+     A            PMTXT         34A  O  4 28
+     A          R PMTCTL                    SFLCTL(PMTSFL)
+     A                                      WINDOW(PMTWIN)
+     A                                      SFLSIZ(0009)
+     A                                      SFLPAG(0008)
+     A                                      OVERLAY
+     A  35                                  SFLDSP
+     A  36                                  SFLDSPCTL
+     A  37                                  SFLCLR
+     A  38                                  SFLEND(*MORE)
+     A          H                           HLPPNLGRP('XDB/PROMPT' WRKXDBPRF)
+     A                                      HLPARA(1 1 12 60)
+     A            PMTITLE       40A  O  1  2DSPATR(HI)
+     A                                  3  2'Opt'
+     A                                      DSPATR(HI)
+     A                                  3  6'Value'
+     A                                      DSPATR(HI)
+     A                                  3 28'Description'
+     A                                      DSPATR(HI)
+     A*
+     A* Options of a profile
+     A          R SFL2                      SFL
+     A  44                                  SFLNXTCHG
+     A            S2OPT          1A  B  8  3
+     A  46                                  DSPATR(RI PC)
+     A            S2KEY         20A  O  8  7
+     A            S2KIND         1A  O  8 29
+     A            S2VAL         48A  O  8 32
+     A          R CTL2                      SFLCTL(SFL2)
+     A                                      SFLSIZ(0014)
+     A                                      SFLPAG(0013)
+     A                                      OVERLAY
+     A                                      CF06(06 'Add')
+     A  71                                  SFLDSP
+     A  72                                  SFLDSPCTL
+     A  73                                  SFLCLR
+     A  74                                  SFLEND(*MORE)
+     A          H                           HLPPNLGRP('XDB/OPTIONS' WRKXDBPRF)
+     A                                      HLPARA(1 1 4 80)
+     A          H                           HLPPNLGRP('XDB/OPT/LIST' WRKXDBPRF)
+     A                                      HLPARA(5 1 21 80)
+     A            S2RRN          4S 0H      SFLRCDNBR(CURSOR)
+     A                                  1  2'XDBPRFM'
+     A                                      COLOR(BLU)
+     A                                  1 25'Options of a Connection Profile'
+     A                                      DSPATR(HI)
+     A                                  3  2'RDB name . . . . :'
+     A            C2RDB         18A  O  3 21DSPATR(HI)
+     A                                  3 42'Type . . :'
+     A            C2TYPE        10A  O  3 53DSPATR(HI)
+     A                                  5  2'Type options, press Enter.'
+     A                                      COLOR(BLU)
+     A                                  6  4'2=Change   4=Delete'
+     A                                      COLOR(BLU)
+     A                                  7  2'Opt'
+     A                                      DSPATR(HI)
+     A                                  7  7'Keyword'
+     A                                      DSPATR(HI)
+     A                                  7 29'K'
+     A                                      DSPATR(HI)
+     A                                  7 32'Value'
+     A                                      DSPATR(HI)
+     A          R FOOT2                     
+     A          H                           HLPPNLGRP('XDB/OPT/KEYS' WRKXDBPRF)
+     A                                      HLPARA(*RCD)
+     A          H                           HLPPNLGRP('XDB/OPT/ALL' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/OPT/PG' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/OPT/MYSQL' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/OPT/MSSQL' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A                                 22  2'K: C=keyword for the database clie-
+     A                                      nt, D=setting of the XDB driver'
+     A                                      COLOR(BLU)
+     A                                 23  2'F1=Help   F3=Exit   F6=Add   F12=C-
+     A                                      ancel'
+     A                                      COLOR(BLU)
+     A            F2MSG         78A  O 24  2
+     A  90                                  COLOR(RED)
+     A N90                                  COLOR(WHT)
+     A*
+     A* One option
+     A          R OPTWIN                    
+     A                                      WINDOW(6 5 14 70)
+     A                                      WDWBORDER((*COLOR BLU))
+     A                                      CF04(04 'Prompt')
+     A                                      RTNCSRLOC(&O1CREC &O1CFLD)
+     A          H                           HLPPNLGRP('XDB/OPT/KEY' WRKXDBPRF)
+     A                                      HLPARA(*FLD O1KEY)
+     A          H                           HLPPNLGRP('XDB/OPT/VAL' WRKXDBPRF)
+     A                                      HLPARA(*FLD O1VAL1)
+     A          H                           HLPPNLGRP('XDB/OPT/WIN' WRKXDBPRF)
+     A                                      HLPARA(*RCD)
+     A          H                           HLPPNLGRP('XDB/OPT/ALL' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/OPT/PG' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/OPT/MYSQL' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/OPT/MSSQL' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A            O1CREC        10A  H      
+     A            O1CFLD        10A  H      
+     A            O1TITLE       40A  O  1  2DSPATR(HI)
+     A                                  3  2'Keyword . . .'
+     A            O1KEY         20A  B  3 16CHECK(LC)
+     A  47                                  DSPATR(PR)
+     A  64                                  DSPATR(RI PC)
+     A                                  4  2'Description :'
+     A            O1TEXT        50A  O  4 16
+     A                                  5  2'Values  . . :'
+     A            O1VALS        50A  O  5 16
+     A                                  6  2'Kind  . . . :'
+     A            O1KINDT       40A  O  6 16
+     A                                  8  2'Value . . . .'
+     A            O1VAL1        50A  B  8 16CHECK(LC)
+     A  65                                  DSPATR(RI PC)
+     A            O1VAL2        50A  B  9 16CHECK(LC)
+     A  65                                  DSPATR(RI)
+     A            O1VAL3        50A  B 10 16CHECK(LC)
+     A  65                                  DSPATR(RI)
+     A            O1VAL4        50A  B 11 16CHECK(LC)
+     A  65                                  DSPATR(RI)
+     A                                 12  2'F1=Help   F4=Prompt   F12=Cancel'
+     A                                      COLOR(BLU)
+     A            O1MSG         66A  O 13  2
+     A  90                                  COLOR(RED)
+     A N90                                  COLOR(WHT)
+     A*
+     A* Confirmation window
+     A          R CNFWIN                    
+     A                                      WINDOW(9 12 6 54)
+     A                                      WDWBORDER((*COLOR RED))
+     A          H                           HLPPNLGRP('XDB/CONFIRM' WRKXDBPRF)
+     A                                      HLPARA(*RCD)
+     A            X1TITLE       50A  O  1  2DSPATR(HI)
+     A            X1TEXT        50A  O  3  2
+     A                                  5  2'Enter=Confirm   F1=Help   F12=Canc-
+     A                                      el'
+     A                                      COLOR(BLU)
+     A*
+     A* Result of a connection test
+     A          R TSTWIN                    
+     A                                      WINDOW(7 6 9 66)
+     A                                      WDWBORDER((*COLOR BLU))
+     A          H                           HLPPNLGRP('XDB/TEST' WRKXDBPRF)
+     A                                      HLPARA(*RCD)
+     A                                  1  2'Connection test of'
+     A                                      DSPATR(HI)
+     A            T1RDB         18A  O  1 21DSPATR(HI)
+     A            T1L1          62A  O  3  2
+     A  90                                  COLOR(RED)
+     A N90                                  COLOR(GRN)
+     A            T1L2          62A  O  4  2
+     A            T1L3          62A  O  5  2
+     A            T1L4          62A  O  6  2
+     A                                  8  2'Press Enter to continue.'
+     A                                      COLOR(BLU)
+     A*
+     A* Setup: the checks of the installation in this library
+     A          R SFL3                      SFL
+     A            S3OPT          1A  B  9  3
+     A  48                                  DSPATR(RI PC)
+     A            S3TEXT        40A  O  9  7
+     A            S3STAT        30A  O  9 49
+     A  81                                  COLOR(GRN)
+     A  82                                  COLOR(YLW)
+     A  83                                  COLOR(RED)
+     A  84                                  COLOR(TRQ)
+     A            S3IDX          2S 0H      
+     A          R CTL3                      SFLCTL(SFL3)
+     A                                      SFLSIZ(0013)
+     A                                      SFLPAG(0012)
+     A                                      OVERLAY
+     A                                      CF05(05 'Check again')
+     A                                      CF10(10 'Do all')
+     A  75                                  SFLDSP
+     A  76                                  SFLDSPCTL
+     A  77                                  SFLCLR
+     A  78                                  SFLEND(*MORE)
+     A          H                           HLPPNLGRP('XDB/SETUP' WRKXDBPRF)
+     A                                      HLPARA(1 1 4 80)
+     A          H                           HLPPNLGRP('XDB/SETUP/OWN' WRKXDBPRF)
+     A                                      HLPARA(5 1 5 80)
+     A          H                           HLPPNLGRP('XDB/SETUP/OPT' WRKXDBPRF)
+     A                                      HLPARA(6 1 7 80)
+     A          H                           HLPPNLGRP('XDB/SETUP/LINES' WRKXDBP-
+     A                                      RF)
+     A                                      HLPARA(8 1 21 47)
+     A          H                           HLPPNLGRP('XDB/SETUP/STS' WRKXDBPRF)
+     A                                      HLPARA(8 48 21 80)
+     A            S3RRN          4S 0H      SFLRCDNBR(CURSOR)
+     A                                  1  2'XDBPRFM'
+     A                                      COLOR(BLU)
+     A                                  1 35'XDB Setup'
+     A                                      DSPATR(HI)
+     A                                  1 72DATE
+     A                                      EDTCDE(Y)
+     A                                      COLOR(BLU)
+     A            C3USER        10A  O  2  2COLOR(BLU)
+     A                                  2 24'Library . . :'
+     A                                      COLOR(BLU)
+     A            C3LIB         10A  O  2 38COLOR(BLU)
+     A                                  2 72TIME
+     A                                      COLOR(BLU)
+     A                                  4  2'Version  . . . . . . .'
+     A            C3VER         50A  O  4 26
+     A                                  5  2'Owner profile  . . . .'
+     A            C3OWN         10A  B  5 26
+     A                                  5 39'Owns the driver and the password l-
+     A                                      ist'
+     A                                      COLOR(BLU)
+     A                                  6  2'Type options, press Enter.'
+     A                                      COLOR(BLU)
+     A                                  7  4'1=Do it   5=Show the commands'
+     A                                      COLOR(BLU)
+     A                                  8  2'Opt'
+     A                                      DSPATR(HI)
+     A                                  8  7'Check'
+     A                                      DSPATR(HI)
+     A                                  8 49'Status'
+     A                                      DSPATR(HI)
+     A          R FOOT3                     
+     A          H                           HLPPNLGRP('XDB/SETUP/KEYS' WRKXDBPR-
+     A                                      F)
+     A                                      HLPARA(*RCD)
+     A          H                           HLPPNLGRP('XDB/SETUP/HOW' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/PROBLEMS' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A          H                           HLPPNLGRP('XDB/LICENCE' WRKXDBPRF)
+     A                                      HLPARA(*NONE)
+     A                                 22  2'Every change is shown as a CL comm-
+     A                                      and first and runs only when you co-
+     A                                      nfirm.'
+     A                                      COLOR(BLU)
+     A                                 23  2'F1=Help   F3=Exit   F5=Check again-
+     A                                         F10=Do all that is to do   F12=C-
+     A                                      ancel'
+     A                                      COLOR(BLU)
+     A            F3MSG         78A  O 24  2
+     A  90                                  COLOR(RED)
+     A N90                                  COLOR(WHT)
+     A*
+     A* Setup: the commands of one line, and their result
+     A          R CMDWIN                    
+     A                                      WINDOW(3 3 19 72)
+     A                                      WDWBORDER((*COLOR BLU))
+     A          H                           HLPPNLGRP('XDB/SETUP/CMD' WRKXDBPRF)
+     A                                      HLPARA(*RCD)
+     A            M1TITLE       68A  O  1  2DSPATR(HI)
+     A            M1N1          68A  O  2  2COLOR(BLU)
+     A            M1N2          68A  O  3  2COLOR(BLU)
+     A            M1L01         68A  O  5  2
+     A            M1L02         68A  O  6  2
+     A            M1L03         68A  O  7  2
+     A            M1L04         68A  O  8  2
+     A            M1L05         68A  O  9  2
+     A            M1L06         68A  O 10  2
+     A            M1L07         68A  O 11  2
+     A            M1L08         68A  O 12  2
+     A            M1L09         68A  O 13  2
+     A            M1L10         68A  O 14  2
+     A            M1L11         68A  O 15  2
+     A            M1L12         68A  O 16  2
+     A            M1KEYS        68A  O 18  2COLOR(BLU)

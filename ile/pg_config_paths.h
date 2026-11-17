@@ -1,0 +1,13 @@
+/* pg_config_paths.h for the IBM i ILE port: only SYSCONFDIR matters to libpq. */
+#define PGBINDIR "/QOpenSys/etc/xdb"
+#define PGSHAREDIR "/QOpenSys/etc/xdb"
+#define SYSCONFDIR "/QOpenSys/etc/xdb"
+#define INCLUDEDIR "/QOpenSys/etc/xdb"
+#define PKGINCLUDEDIR "/QOpenSys/etc/xdb"
+#define INCLUDEDIRSERVER "/QOpenSys/etc/xdb"
+#define LIBDIR "/QOpenSys/etc/xdb"
+#define PKGLIBDIR "/QOpenSys/etc/xdb"
+#define LOCALEDIR "/QOpenSys/etc/xdb"
+#define DOCDIR "/QOpenSys/etc/xdb"
+#define HTMLDIR "/QOpenSys/etc/xdb"
+#define MANDIR "/QOpenSys/etc/xdb"

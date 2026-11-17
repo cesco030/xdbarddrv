@@ -1,0 +1,29 @@
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+ARXP0100 -> sqlcode -803 sqlstate 23505 outlen 1 {t_pkey|*N|*N|*N}
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 1168 
+  col id type 497 len 4 ccsid 0
+  col name type 449 len 30 ccsid 280
+  col amt type 485 len 2818 ccsid 0
+  col d type 385 len 10 ccsid 280
+  col ts type 393 len 26 ccsid 280
+  col f type 481 len 8 ccsid 0
+  col note type 449 len 1000 ccsid 280
+  col c type 453 len 5 ccsid 280
+  col dbl type 485 len 7942 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 608 
+  block=1 hold=0
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 256 
+  row: 1 [Città alta] x'00123456789D' [31.12.2026] <null> <null> <null> <null> x'0000000000000000002469135780000D'
+  row: 2 [row 2] x'00000000300F' [03.01.2026] [2026-11-12-18.30.00.500000] 0.666667 [xx] [ab] x'0000000000000000000000006000000F'
+  row: 3 [row 3] x'00000000450F' [04.01.2026] [2026-11-12-18.30.00.500000] 1 [xxx] [ab] x'0000000000000000000000009000000F'
+ARFC0100 -> sqlcode 100 sqlstate 02000 outlen 5 
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+ARXI0100 -> sqlcode -204 sqlstate 42704 outlen 1 {no_such_table|*N|N}
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+rollback through the commit exit
+ARXI0100 -> sqlcode -204 sqlstate 42704 outlen 1 {t|*N|N}
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 

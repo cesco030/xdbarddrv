@@ -1,0 +1,18 @@
+     A* XDBKWD - keywords that can be used as profile options, per database
+     A* type (*ALL = every type). Loaded from xdbkwd.sql; used by WRKXDBPRF
+     A* for F4 and for checking. KWVALS: allowed values separated by a
+     A* blank, empty = any value.
+     A                                      UNIQUE
+     A          R XDBKWDR                   TEXT('XDB option keyword')
+     A            KWTYPE        10A         TEXT('Database type or *ALL')
+     A                                      COLHDG('Database' 'type')
+     A            KWKEY         20A         TEXT('Keyword')
+     A                                      COLHDG('Keyword')
+     A            KWKIND         1A         TEXT('Kind: C=Connection D=Driver')
+     A                                      COLHDG('Kind')
+     A            KWTEXT        50A         TEXT('Description')
+     A                                      COLHDG('Description')
+     A            KWVALS        50A         TEXT('Allowed values')
+     A                                      COLHDG('Allowed' 'values')
+     A          K KWTYPE                    
+     A          K KWKEY                     

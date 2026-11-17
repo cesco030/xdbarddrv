@@ -1,0 +1,19 @@
+     A* XDBPRO - options of an XDB connection profile.
+     A* POKIND C: keyword added to the connection string of the database
+     A* client. POKIND D: setting of the XDB driver itself.
+     A                                      UNIQUE
+     A          R XDBPROR                   TEXT('XDB profile option')
+     A            PORDB         18A         TEXT('RDB directory entry name')
+     A                                      COLHDG('RDB name')
+     A            POKEY         20A         TEXT('Keyword')
+     A                                      COLHDG('Keyword')
+     A            POKIND         1A         TEXT('Kind: C=Connection D=Driver')
+     A                                      COLHDG('Kind')
+     A            POVAL        200A         TEXT('Value')
+     A                                      COLHDG('Value')
+     A            POCHGU        10A         TEXT('Changed by')
+     A                                      COLHDG('Changed' 'by')
+     A            POCHGT          Z         TEXT('Changed at')
+     A                                      COLHDG('Changed' 'at')
+     A          K PORDB                     
+     A          K POKEY                     

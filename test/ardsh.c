@@ -1,0 +1,355 @@
+/*
+ * ardsh.c - scriptable Linux harness for the ARD: one request per line.
+ *   C                 connect            D             disconnect
+ *   ISO *CHG|*NONE    isolation for the next requests
+ *   X sql             execute immediate
+ *   P name sql        prepare
+ *   E name a|b|c      execute prepared (i:5 = integer, n: = NULL, else VARCHAR)
+ *   Q sql             prepare, describe, open, fetch everything, close
+ *   R sql             the same in one fixed statement slot (as STRSQL does)
+ *   O cur sql         open a cursor and leave it open (a|b params after " ## ")
+ *   F cur             fetch one block         K cur    close
+ *   COMMIT / ROLLBACK what the system does for them: the commit exit of every
+ *                     connection, in the order of a commit (see ardharn.h)
+ *   RDB name          the connection the next requests are for
+ *   SLEEP n           wait n seconds         ! command   run a shell command
+ * env: XDB_CONF, XDB_EMU_JOBCCSID, XDB_TEST_RDB, XDB_SH_MAXROWS (rows printed),
+ *      XDB_EMU_CMT (the kind of commitment resource the emulated system takes)
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stddef.h>
+#include <unistd.h>
+#include "xdbard.h"
+
+extern int	ile_conv(int from, int to, const char *in, size_t inlen, char *out, size_t outsize);
+extern int	ile_job_ccsid(void);
+
+#include "ardharn.h"
+
+static int	sect = 10;
+static struct
+{
+	char		name[20];
+	int			section;
+	char		sda[8192];
+}			curs[16];
+static int	nrows_total,
+			maxprint = 5;
+
+/* parameters "a|b|c" -> SQLDA at in+off; returns end offset */
+static unsigned char pbuf[40000];
+static short pind[32];
+static int
+parms(const char *spec, int off, int offfld)
+{
+	static xsqlvar pv[32];
+	static char tmp[20000];
+	char	   *tok;
+	int			n = 0,
+				used = 0,
+				v;
+
+	memset(pv, 0, sizeof pv);
+	snprintf(tmp, sizeof tmp, "%s", spec);
+	for (tok = strtok(tmp, "|"); tok && n < 32; tok = strtok(NULL, "|"), n++)
+	{
+		pind[n] = 0;
+		pv[n].sqlind = &pind[n];
+		if (strncmp(tok, "i:", 2) == 0)
+		{
+			int			x = atoi(tok + 2);
+
+			pv[n].sqltype = 497;
+			pv[n].sqllen = 4;
+			pbuf[used] = (unsigned char) (x >> 24);
+			pbuf[used + 1] = (unsigned char) (x >> 16);
+			pbuf[used + 2] = (unsigned char) (x >> 8);
+			pbuf[used + 3] = (unsigned char) x;
+			pv[n].sqldata = pbuf + used;
+			used += 4;
+		}
+		else if (tok[0] == 't' && strchr(tok, ':'))
+		{
+			/* t<sqltype>:  a host variable of any SQL type, 8 bytes of data */
+			pv[n].sqltype = (short) atoi(tok + 1);
+			pv[n].sqllen = 8;
+			memset(pbuf + used, 0, 8);
+			pv[n].sqldata = pbuf + used;
+			used += 8;
+		}
+		else if (strncmp(tok, "n:", 2) == 0)
+		{
+			pv[n].sqltype = 449;
+			pv[n].sqllen = 10;
+			pv[n].sqldata = pbuf + used;
+			pind[n] = -1;
+			used += 12;
+		}
+		else
+		{
+			static char c[20000];
+			int			l = ile_conv(1208, ile_job_ccsid(), tok, strlen(tok), c, sizeof c);
+
+			pv[n].sqltype = 449;
+			pv[n].sqllen = (short) l;
+			pbuf[used] = (unsigned char) (l >> 8);
+			pbuf[used + 1] = (unsigned char) l;
+			memcpy(pbuf + used + 2, c, l);
+			pv[n].sqldata = pbuf + used;
+			used += l + 2;
+		}
+	}
+	off = (off + 15) & ~15;
+	memcpy(in + off, "SQLDA   ", 8);
+	{
+		short		sh = (short) n;
+
+		memcpy(in + off + 12, &sh, 2);
+		memcpy(in + off + 14, &sh, 2);
+	}
+	memcpy(in + off + 16, pv, n * sizeof(xsqlvar));
+	memcpy(in + offfld, &off, 4);
+	v = 16 + n * (int) sizeof(xsqlvar);
+	memcpy(in + offfld + 4, &v, 4);
+	return off + v;
+}
+
+static int
+open_cur(const char *name, int section, char *sql)
+{
+	char	   *pp = strstr(sql, " ## ");
+	int			n,
+				v;
+
+	if (pp)
+		*pp = '\0';
+	hdr(section);
+	J(in + 120, 18, name);
+	n = text(256, 112, sql);
+	if (call("ARPD0100", n) != 0)
+		return -1;
+	dump_sqlda(out);
+	hdr(section);
+	in[130] = ile_job_ccsid() == 1208 ? '1' : 0xF1;
+	J(in + 148, 18, name);
+	n = 192;
+	if (pp)
+		n = parms(pp + 4, 192, 132);
+	if (call("AROC0100", n) != 0)
+		return -1;
+	memcpy(&v, out + 4, 4);
+	memcpy(sda, out + v, outlen - v);
+	return 0;
+}
+
+static int
+count_rows(void)
+{
+	/* rows are counted by sqlerrd(3) of the fetch */
+	int			r;
+
+	memcpy(&r, ca + 96 + 8, 4);
+	return r;
+}
+
+int
+main(int argc, char **argv)
+{
+	static char line[16384];
+	int			n,
+				v,
+				i;
+
+	/* line by line, so that what the driver writes to stderr stays where it belongs */
+	setvbuf(stdout, NULL, _IOLBF, 0);
+	iso = "*NONE";
+	if (getenv("XDB_TEST_RDB"))
+		rdbname = getenv("XDB_TEST_RDB");
+	if (getenv("XDB_SH_MAXROWS"))
+		maxprint = atoi(getenv("XDB_SH_MAXROWS"));
+	{
+		char		t[4];
+
+		ile_conv(1208, ile_job_ccsid(), " ", 1, t, sizeof t);
+		bl = (unsigned char) t[0];
+	}
+	while (fgets(line, sizeof line, stdin))
+	{
+		char	   *a = line + strlen(line);
+		char		w1[32],
+					w2[32];
+		char	   *rest;
+
+		while (a > line && (a[-1] == '\n' || a[-1] == '\r'))
+			*--a = '\0';
+		if (line[0] == '\0' || line[0] == '#')
+			continue;
+		printf("> %.100s\n", line);
+		w1[0] = w2[0] = '\0';
+		sscanf(line, "%31s %31s", w1, w2);
+		rest = strchr(line, ' ');
+		rest = rest ? rest + 1 : "";
+		if (strcmp(w1, "C") == 0)
+		{
+			hdr(0);
+			J(in + 76, 10, w2);
+			J(in + 86, 10, strlen(rest) > strlen(w2) ? rest + strlen(w2) + 1 : "");
+			J(in + 96, 8, "QSQ07050");
+			call("ARCN0100", 104);
+		}
+		else if (strcmp(w1, "D") == 0)
+		{
+			hdr(0);
+			v = 2;
+			memcpy(in + 28, &v, 4);
+			call("ARDI0100", 32);
+		}
+		else if (strcmp(w1, "ISO") == 0)
+		{
+			static char isob[16];
+
+			snprintf(isob, sizeof isob, "%s", w2);
+			iso = isob;
+		}
+		else if (strcmp(w1, "X") == 0)
+		{
+			hdr(++sect);
+			n = text(138, 112, rest);
+			call("ARXI0100", n);
+			memcpy(&v, ca + 104, 4);
+			printf("  rows=%d\n", v);
+		}
+		else if (strcmp(w1, "P") == 0)
+		{
+			hdr(++sect);
+			J(in + 120, 18, w2);
+			n = text(138, 112, rest + strlen(w2) + 1);
+			call("ARPS0100", n);
+		}
+		else if (strcmp(w1, "E") == 0)
+		{
+			hdr(0);
+			J(in + 128, 18, w2);
+			n = parms(strlen(rest) > strlen(w2) ? rest + strlen(w2) + 1 : "", 160, 112);
+			call("ARXP0100", n);
+			memcpy(&v, ca + 104, 4);
+			printf("  rows=%d\n", v);
+		}
+		else if (strcmp(w1, "Q") == 0 || strcmp(w1, "R") == 0)
+		{
+			int			total = 0,
+						calls = 0;
+
+			/* R: always the same statement slot, as STRSQL does */
+			if (w1[0] == 'R')
+				sect = 9;
+			else
+				++sect;
+			dump_done = 0;
+			if (open_cur("QC", sect, rest) == 0)
+			{
+				for (;;)
+				{
+					char		f[8];
+					int			code;
+
+					hdr(sect);
+					J(in + 112, 18, "QC");
+					J(f, 8, "ARFC0100");
+					xdb_ard_entry(&level, in, &n, f, ca, &ccsid, out, &outlen);
+					memcpy(&code, ca + 12, 4);
+					if (code != 0)
+					{
+						char		st[16],
+									msg[128];
+						short		ml;
+
+						memcpy(&ml, ca + 16, 2);
+						U(ca + 131, 5, st);
+						M(ca, msg);
+						printf("ARFC0100 -> sqlcode %d sqlstate %s %s\n", code, st, msg);
+						break;
+					}
+					calls++;
+					dump_limit = maxprint;
+					dump_rows();
+					total += count_rows();
+				}
+				printf("  total rows=%d in %d fetch calls\n", total, calls);
+				hdr(sect);
+				J(in + 80, 18, "QC");
+				call("ARCC0100", 98);
+			}
+		}
+		else if (strcmp(w1, "O") == 0)
+		{
+			for (i = 0; i < 16 && curs[i].name[0]; i++)
+				;
+			if (i < 16 && open_cur(w2, ++sect, rest + strlen(w2) + 1) == 0)
+			{
+				snprintf(curs[i].name, sizeof curs[i].name, "%s", w2);
+				curs[i].section = sect;
+				memcpy(curs[i].sda, sda, sizeof sda);
+			}
+		}
+		else if (strcmp(w1, "F") == 0 || strcmp(w1, "K") == 0)
+		{
+			for (i = 0; i < 16 && strcmp(curs[i].name, w2) != 0; i++)
+				;
+			if (i == 16)
+			{
+				printf("  no such cursor\n");
+				continue;
+			}
+			hdr(curs[i].section);
+			if (w1[0] == 'F')
+			{
+				J(in + 112, 18, w2);
+				memcpy(sda, curs[i].sda, sizeof sda);
+				if (call("ARFC0100", 130) == 0)
+				{
+					printf("  rows=%d\n", count_rows());
+					dump_limit = 2;
+					dump_done = 0;
+					dump_rows();
+				}
+			}
+			else
+			{
+				J(in + 80, 18, w2);
+				call("ARCC0100", 98);
+				curs[i].name[0] = '\0';
+			}
+		}
+		else if (strcmp(w1, "COMMIT") == 0 || strcmp(w1, "ROLLBACK") == 0)
+		{
+			/* what the system does for the program's COMMIT or ROLLBACK, on all connections */
+			harn_end(w1[0] == 'C');
+			for (i = 0; i < 16; i++)
+				curs[i].name[0] = '\0';
+		}
+		else if (strcmp(w1, "SLEEP") == 0)
+			sleep((unsigned) atoi(w2));
+		else if (strcmp(w1, "!") == 0)
+		{
+			/* a shell command: something that happens outside the program */
+			fflush(stdout);
+			if (system(rest) != 0)
+				printf("  (the command failed)\n");
+		}
+		else if (strcmp(w1, "RDB") == 0)
+		{
+			/* the connection the next requests are for (as SET CONNECTION, or before a further C) */
+			static char names[8][20];
+			static int	nn;
+
+			snprintf(names[nn % 8], sizeof names[0], "%s", w2);
+			rdbname = names[nn++ % 8];
+		}
+		else
+			printf("  ?\n");
+	}
+	return 0;
+}

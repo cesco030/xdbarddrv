@@ -1,0 +1,20 @@
+libpq 180007
+ok   connect server=16 proto=3 enc=UTF8 ssl=0
+ok   create table
+ok   insert params
+  cmdtuples=1
+ok   insert bulk
+ok   prepare
+ok   describe
+  nparams=1 paramtype=23 nfields=7 fmod(amt)=720902
+ok   exec prepared
+  cols: id(23)|name(1043)|amt(1700)|d(1082)|ts(1114)|flag(16)|note(25)
+  row0: 1|Città di Bergamo €|1234567.89|2026-11-12|2026-11-12 18:30:00.123456|t|<null>
+  row1: 2|row 2|3.00|2026-01-03|<null>|t|xx
+  row2: 3|row 3|4.50|2026-01-04|<null>|f|xxx
+ok   duplicate key -> sqlstate 23505
+  deleted=5
+ok   after rollback
+  cols: count(20)|sum(1700)|max(23)
+  row0: 5|1234588.89|5
+RESULT 0 failure(s)

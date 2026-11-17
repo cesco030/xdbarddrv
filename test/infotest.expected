@@ -1,0 +1,493 @@
+== PostgreSQL: a new connection, everything
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select * from xdb_connection_info
+  row: [connection] [rdb] [INFPG]
+  row: [connection] [database_type] [PostgreSQL]
+  row: [connection] [host] [127.0.0.1]
+  row: [connection] [port] [5433]
+  row: [connection] [database] [postgres]
+  row: [connection] [user] [postgres]
+  row: [connection] [profile] [file XDBPRF in library EMULIB]
+  row: [connection] [connected] [*]
+  row: [connection] [activation_group] [7]
+  row: [link] [protocol] [PostgreSQL protocol 3]
+  row: [link] [encryption] [none]
+  row: [link] [session_id] [*]
+  row: [link] [state] [idle]
+  row: [link] [client_library] [*]
+  row: [server] [product] [PostgreSQL]
+  row: [server] [version] [*]
+  row: [server] [server_version_num] [*]
+  row: [server] [database] [postgres]
+  row: [server] [encoding] [UTF8]
+  row: [server] [client_encoding] [UTF8]
+  row: [server] [time_zone] [*]
+  row: [server] [date_style] [*]
+  row: [server] [session_user] [postgres]
+  row: [server] [superuser] [on]
+  row: [server] [standby] [off]
+  row: [server] [read_only_by_default] [off]
+  row: [server] [standard_conforming_strings] [on]
+  row: [server] [application_name] [xdbinfo]
+  row: [server] [notices] [0]
+  row: [server] [version_number] [*]
+  row: [session] [commit_mode] [commitment control]
+  row: [session] [unit_of_work] [none]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [session] [savepoint_per_statement] [on]
+  row: [session] [statements] [0 of 64]
+  row: [session] [open_cursors] [0]
+  row: [session] [seconds_since_last_statement] [*]
+  row: [session] [date_format] [*EUR]
+  row: [session] [time_format] [*ISO]
+  row: [counters] [reconnects] [0]
+  row: [counters] [last_reconnect] [never]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [idle_checks] [0]
+  row: [counters] [statements_prepared] [0]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [0]
+  row: [counters] [fetch_requests] [0]
+  row: [counters] [rows_fetched] [0]
+  row: [counters] [fetches_from_server] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [0]
+  row: [options] [text_len] [1000]
+  row: [options] [numeric_scale] [6]
+  row: [options] [ccsid] [280]
+  row: [options] [trim_char] [on]
+  row: [options] [idle_check] [2 seconds]
+  row: [options] [ping_timeout] [5 seconds]
+  row: [options] [joblog] [long]
+  row: [options] [trace] [off]
+  row: [options] [long_values] [cut]
+  row: [options] [lob_direct] [4194304 bytes]
+  row: [limits] [statements_per_connection] [64]
+  row: [limits] [parameters_per_statement] [256]
+  row: [limits] [columns_per_result] [256]
+  row: [limits] [connections_per_job] [16]
+  row: [limits] [rows_per_exchange] [200]
+  row: [limits] [bytes_per_block] [32000]
+  row: [driver] [name] [XDBARDDRV]
+  row: [driver] [version] [*]
+  row: [driver] [built] [*]
+  row: [driver] [library] [EMULIB]
+  row: [driver] [job_ccsid] [280]
+  row: [driver] [connections_in_job] [1 of 16]
+  total rows=76 in 1 fetch calls
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PostgreSQL: after some work
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create temp table xdb_info_t (n int)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+> X insert into xdb_info_t values (1), (2), (3)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+> Q select count(*) from xdb_info_t
+  total rows=1 in 1 fetch calls
+> Q select no_such_column from xdb_info_t
+ARPD0100 -> sqlcode -206 sqlstate 42703 outlen 0 {no_such_column|*N|*N}
+> Q xdb connection info
+  row: [link] [protocol] [PostgreSQL protocol 3]
+  row: [link] [encryption] [none]
+  row: [link] [session_id] [*]
+  row: [link] [state] [in a transaction]
+  row: [link] [client_library] [*]
+  row: [session] [commit_mode] [commitment control]
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [session] [savepoint_per_statement] [on]
+  row: [session] [statements] [1 of 64]
+  row: [session] [open_cursors] [0]
+  row: [session] [seconds_since_last_statement] [*]
+  row: [session] [date_format] [*EUR]
+  row: [session] [time_format] [*ISO]
+  row: [counters] [reconnects] [0]
+  row: [counters] [last_reconnect] [never]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [idle_checks] [0]
+  row: [counters] [statements_prepared] [2]
+  row: [counters] [statements_executed] [2]
+  row: [counters] [rows_changed] [3]
+  row: [counters] [cursors_opened] [1]
+  row: [counters] [fetch_requests] [2]
+  row: [counters] [rows_fetched] [1]
+  row: [counters] [fetches_from_server] [1]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [1]
+  total rows=76 in 1 fetch calls
+> COMMIT
+> Q select * from xdb_connection_info
+  row: [link] [protocol] [PostgreSQL protocol 3]
+  row: [link] [encryption] [none]
+  row: [link] [session_id] [*]
+  row: [link] [state] [idle]
+  row: [link] [client_library] [*]
+  row: [session] [commit_mode] [commitment control]
+  row: [session] [unit_of_work] [none]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [session] [savepoint_per_statement] [on]
+  row: [session] [statements] [1 of 64]
+  row: [session] [open_cursors] [0]
+  row: [session] [seconds_since_last_statement] [*]
+  row: [session] [date_format] [*EUR]
+  row: [session] [time_format] [*ISO]
+  row: [counters] [reconnects] [0]
+  row: [counters] [last_reconnect] [never]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [idle_checks] [0]
+  row: [counters] [statements_prepared] [2]
+  row: [counters] [statements_executed] [2]
+  row: [counters] [rows_changed] [3]
+  row: [counters] [cursors_opened] [1]
+  row: [counters] [fetch_requests] [2]
+  row: [counters] [rows_fetched] [1]
+  row: [counters] [fetches_from_server] [1]
+  row: [counters] [commits] [1]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [1]
+  total rows=76 in 1 fetch calls
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PostgreSQL: the session is ended by the server, between two units of work and inside one
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select 1
+  total rows=1 in 1 fetch calls
+> COMMIT
+> Q select 2
+  total rows=1 in 1 fetch calls
+> Q select * from xdb_connection_info
+  row: [link] [state] [in a transaction]
+  row: [session] [unit_of_work] [open]
+  row: [counters] [reconnects] [1]
+  row: [counters] [last_reconnect] [*]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [idle_checks] [1]
+  row: [counters] [statements_prepared] [2]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [2]
+  row: [counters] [fetch_requests] [4]
+  row: [counters] [rows_fetched] [2]
+  row: [counters] [fetches_from_server] [2]
+  row: [counters] [commits] [1]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [0]
+  total rows=76 in 1 fetch calls
+> Q select 3
+ARPD0100 -> sqlcode -911 sqlstate 40001 outlen 0 connection lost while idle; reconnected, the unit of work was rolled b
+> Q select * from xdb_connection_info
+  row: [link] [state] [idle]
+  row: [session] [unit_of_work] [none]
+  row: [counters] [reconnects] [2]
+  row: [counters] [last_reconnect] [*]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [idle_checks] [2]
+  row: [counters] [statements_prepared] [2]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [2]
+  row: [counters] [fetch_requests] [4]
+  row: [counters] [rows_fetched] [2]
+  row: [counters] [fetches_from_server] [2]
+  row: [counters] [commits] [1]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [1]
+  total rows=76 in 1 fetch calls
+> ROLLBACK
+> Q select 4
+  total rows=1 in 1 fetch calls
+> Q select * from xdb_connection_info
+  row: [link] [state] [in a transaction]
+  row: [session] [unit_of_work] [open]
+  row: [counters] [reconnects] [2]
+  row: [counters] [last_reconnect] [*]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [idle_checks] [2]
+  row: [counters] [statements_prepared] [3]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [3]
+  row: [counters] [fetch_requests] [6]
+  row: [counters] [rows_fetched] [3]
+  row: [counters] [fetches_from_server] [3]
+  row: [counters] [commits] [1]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [1]
+  row: [counters] [errors] [1]
+  total rows=76 in 1 fetch calls
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL: a new connection, everything
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select * from xdb_connection_info
+  row: [connection] [rdb] [INFMY]
+  row: [connection] [database_type] [MySQL]
+  row: [connection] [host] [127.0.0.1]
+  row: [connection] [port] [3306]
+  row: [connection] [database] [xdbtest]
+  row: [connection] [user] [xdbn]
+  row: [connection] [profile] [file XDBPRF in library EMULIB]
+  row: [connection] [connected] [*]
+  row: [connection] [activation_group] [7]
+  row: [link] [protocol] [MySQL protocol 10]
+  row: [link] [encryption] [none]
+  row: [link] [session_id] [*]
+  row: [link] [state] [idle]
+  row: [link] [character_set] [utf8mb4]
+  row: [server] [product] [MySQL]
+  row: [server] [version] [*]
+  row: [server] [default_collation_id] [*]
+  row: [server] [autocommit] [off]
+  row: [server] [max_allowed_packet] [not asked yet (the file functions ask)]
+  row: [server] [version_number] [*]
+  row: [session] [commit_mode] [commitment control]
+  row: [session] [unit_of_work] [none]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [session] [savepoint_per_statement] [off]
+  row: [session] [statements] [0 of 64]
+  row: [session] [open_cursors] [0]
+  row: [session] [seconds_since_last_statement] [*]
+  row: [session] [date_format] [*EUR]
+  row: [session] [time_format] [*ISO]
+  row: [counters] [reconnects] [0]
+  row: [counters] [last_reconnect] [never]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [idle_checks] [0]
+  row: [counters] [statements_prepared] [0]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [0]
+  row: [counters] [fetch_requests] [0]
+  row: [counters] [rows_fetched] [0]
+  row: [counters] [fetches_from_server] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [0]
+  row: [options] [text_len] [1000]
+  row: [options] [numeric_scale] [6]
+  row: [options] [ccsid] [280]
+  row: [options] [trim_char] [on]
+  row: [options] [idle_check] [2 seconds]
+  row: [options] [ping_timeout] [5 seconds]
+  row: [options] [joblog] [long]
+  row: [options] [trace] [off]
+  row: [limits] [statements_per_connection] [64]
+  row: [limits] [parameters_per_statement] [256]
+  row: [limits] [columns_per_result] [256]
+  row: [limits] [connections_per_job] [16]
+  row: [limits] [rows_per_exchange] [200]
+  row: [limits] [bytes_per_block] [32000]
+  row: [driver] [name] [XDBARDDRV]
+  row: [driver] [version] [*]
+  row: [driver] [built] [*]
+  row: [driver] [library] [EMULIB]
+  row: [driver] [job_ccsid] [280]
+  row: [driver] [connections_in_job] [1 of 16]
+  total rows=64 in 1 fetch calls
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL with TLS: the connection to the server
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select * from xdb_connection_info
+  row: [link] [protocol] [MySQL protocol 10]
+  row: [link] [encryption] [TLS *]
+  row: [link] [session_id] [*]
+  row: [link] [state] [idle]
+  row: [link] [character_set] [utf8mb4]
+  total rows=64 in 1 fetch calls
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL: the session is ended by the server, between two units of work and inside one
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select 1
+  total rows=1 in 1 fetch calls
+> COMMIT
+> Q select 2
+  total rows=1 in 1 fetch calls
+> Q select * from xdb_connection_info
+  row: [link] [state] [in a transaction]
+  row: [session] [unit_of_work] [open]
+  row: [counters] [reconnects] [1]
+  row: [counters] [last_reconnect] [*]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [idle_checks] [1]
+  row: [counters] [statements_prepared] [2]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [2]
+  row: [counters] [fetch_requests] [4]
+  row: [counters] [rows_fetched] [2]
+  row: [counters] [fetches_from_server] [2]
+  row: [counters] [commits] [1]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [0]
+  total rows=64 in 1 fetch calls
+> Q select 3
+ARPD0100 -> sqlcode -911 sqlstate 40001 outlen 0 connection lost while idle; reconnected, the unit of work was rolled b
+> Q select * from xdb_connection_info
+  row: [link] [state] [idle]
+  row: [session] [unit_of_work] [none]
+  row: [counters] [reconnects] [2]
+  row: [counters] [last_reconnect] [*]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [idle_checks] [2]
+  row: [counters] [statements_prepared] [2]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [2]
+  row: [counters] [fetch_requests] [4]
+  row: [counters] [rows_fetched] [2]
+  row: [counters] [fetches_from_server] [2]
+  row: [counters] [commits] [1]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [1]
+  total rows=64 in 1 fetch calls
+> ROLLBACK
+> Q select 4
+  total rows=1 in 1 fetch calls
+> Q select * from xdb_connection_info
+  row: [link] [state] [in a transaction]
+  row: [session] [unit_of_work] [open]
+  row: [counters] [reconnects] [2]
+  row: [counters] [last_reconnect] [*]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [idle_checks] [2]
+  row: [counters] [statements_prepared] [3]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [3]
+  row: [counters] [fetch_requests] [6]
+  row: [counters] [rows_fetched] [3]
+  row: [counters] [fetches_from_server] [3]
+  row: [counters] [commits] [1]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [1]
+  row: [counters] [errors] [1]
+  total rows=64 in 1 fetch calls
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== SQL Server (the mock of the tests): a new connection, everything
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select * from xdb_connection_info
+  row: [connection] [rdb] [INFMS]
+  row: [connection] [database_type] [SQL Server]
+  row: [connection] [host] [127.0.0.1]
+  row: [connection] [port] [14330]
+  row: [connection] [database] [testdb]
+  row: [connection] [user] [sa]
+  row: [connection] [profile] [file XDBPRF in library EMULIB]
+  row: [connection] [connected] [*]
+  row: [connection] [activation_group] [7]
+  row: [link] [protocol] [TDS 7.1 (asked for 7.4)]
+  row: [link] [encryption] [none]
+  row: [link] [session_id] [*]
+  row: [link] [state] [idle]
+  row: [link] [packet_size] [4096 bytes]
+  row: [server] [product] [Microsoft SQL Server]
+  row: [server] [version] [*]
+  row: [server] [database] [testdb]
+  row: [server] [varchar_ccsid] [1252 (from its collation)]
+  row: [server] [reports_transactions] [not seen yet]
+  row: [server] [version_number] [*]
+  row: [session] [commit_mode] [commitment control]
+  row: [session] [unit_of_work] [none]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [session] [savepoint_per_statement] [off]
+  row: [session] [statements] [0 of 64]
+  row: [session] [open_cursors] [0]
+  row: [session] [seconds_since_last_statement] [*]
+  row: [session] [date_format] [*EUR]
+  row: [session] [time_format] [*ISO]
+  row: [counters] [reconnects] [0]
+  row: [counters] [last_reconnect] [never]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [idle_checks] [0]
+  row: [counters] [statements_prepared] [0]
+  row: [counters] [statements_executed] [0]
+  row: [counters] [rows_changed] [0]
+  row: [counters] [cursors_opened] [0]
+  row: [counters] [fetch_requests] [0]
+  row: [counters] [rows_fetched] [0]
+  row: [counters] [fetches_from_server] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+  row: [counters] [errors] [0]
+  row: [options] [text_len] [1000]
+  row: [options] [numeric_scale] [6]
+  row: [options] [ccsid] [280]
+  row: [options] [trim_char] [on]
+  row: [options] [idle_check] [2 seconds]
+  row: [options] [ping_timeout] [5 seconds]
+  row: [options] [joblog] [long]
+  row: [options] [trace] [off]
+  row: [options] [string_params] [auto]
+  row: [options] [datetime2] [off]
+  row: [limits] [statements_per_connection] [64]
+  row: [limits] [parameters_per_statement] [256]
+  row: [limits] [columns_per_result] [256]
+  row: [limits] [connections_per_job] [16]
+  row: [limits] [rows_per_exchange] [200]
+  row: [limits] [bytes_per_block] [32000]
+  row: [driver] [name] [XDBARDDRV]
+  row: [driver] [version] [*]
+  row: [driver] [built] [*]
+  row: [driver] [library] [EMULIB]
+  row: [driver] [job_ccsid] [280]
+  row: [driver] [connections_in_job] [1 of 16]
+  total rows=66 in 1 fetch calls
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== without commitment control, and what is not this statement
+> ISO *NONE
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select * from xdb_connection_info
+  row: [session] [commit_mode] [every statement is committed at once]
+  row: [session] [unit_of_work] [none]
+  row: [session] [commit_resource] [not needed]
+  row: [session] [savepoint_per_statement] [on]
+  row: [session] [statements] [0 of 64]
+  row: [session] [open_cursors] [0]
+  row: [session] [seconds_since_last_statement] [*]
+  row: [session] [date_format] [*EUR]
+  row: [session] [time_format] [*ISO]
+  total rows=76 in 1 fetch calls
+> Q select * from xdb_connection_info where area = 'server'
+ARPD0100 -> sqlcode -204 sqlstate 42704 outlen 0 {xdb_connection_info|*N|N}
+> Q select name from xdb_connection_info
+ARPD0100 -> sqlcode -204 sqlstate 42704 outlen 0 {xdb_connection_info|*N|N}
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 

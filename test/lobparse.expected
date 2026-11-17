@@ -1,0 +1,175 @@
+IN : select * from t where a = ?
+     (no file function)
+
+IN : select 'get_blob_from_file(x)' as s, "PUT_BLOB_TO_FILE" from t -- put_blob_to_file(a,b)
+     (no file function)
+
+IN : select myschema.get_blob_from_file('x'), put_blob_to_file from t
+     (no file function)
+
+IN : update t set get_blob_from_file = 1
+     (no file function)
+
+IN : insert into doc (id, body) values(?, get_blob_from_file(?))
+OUT: insert into doc (id, body) values(?, FILEIN(?,?))
+     host variables 2, markers h0 f0.0 f0.1
+     file 0 in : bytes, name in host variable 1
+
+IN : insert into doc (id, body) values(:H, GET_BLOB_FROM_FILE(:H :H))
+OUT: insert into doc (id, body) values(:H, FILEIN(?,?))
+     host variables 2, markers h0 f0.0 f0.1
+     file 0 in : bytes, name in host variable 1
+
+IN : update doc set note = Get_Clob_From_File ( '/home/x/it''s.txt' , 1 ) where id = ? and k = ?
+OUT: update doc set note = FILEINTEXT(?,?) where id = ? and k = ?
+     host variables 2, markers f0.0 f0.1 h0 h1
+     file 0 in : text, name [/home/x/it's.txt]
+
+IN : insert into doc values(?, get_blob_from_file('/a'), ?, get_clob_from_file(?), ?)
+OUT: insert into doc values(?, FILEIN(?,?), ?, FILEINTEXT(?,?), ?)
+     host variables 4, markers h0 f0.0 f0.1 h1 f1.0 f1.1 h3
+     file 0 in : bytes, name [/a]
+     file 1 in : text, name in host variable 2
+
+IN : call store(get_blob_from_file(?), 'x?', ?) /* ? */
+OUT: call store(FILEIN(?,?), 'x?', ?) /* ? */
+     host variables 2, markers f0.0 f0.1 h1
+     file 0 in : bytes, name in host variable 0
+
+IN : select id, put_blob_to_file(body, '/tmp/d' || id || '.pdf') from doc where id > ?
+OUT: select id, FILEOUT(body ;; '/tmp/d' || id || '.pdf') AS PUT_BLOB_TO_FILE from doc where id > ?
+     host variables 1, markers h0
+     file 0 out: bytes, column 1, option 16, ccsid 1208
+
+IN : SELECT PUT_CLOB_TO_FILE(note, ?, 32, 1252) AS n, id FROM doc WHERE k = ? ORDER BY id
+OUT: SELECT FILEOUTTEXT(note ;; ?) AS n, id FROM doc WHERE k = ? ORDER BY id
+     host variables 2, markers h0 h1
+     file 0 out: text, column 0, option 32, ccsid 1252
+
+IN : select distinct on (a, f(?)) a, put_blob_to_file(b, :H), put_clob_to_file(c, 'x', 8) x from t
+OUT: select distinct on (a, f(?)) a, FILEOUT(b ;; :H) AS PUT_BLOB_TO_FILE, FILEOUTTEXT(c ;; 'x') x from t
+     host variables 2, markers h0 h1
+     file 0 out: bytes, column 1, option 16, ccsid 1208
+     file 1 out: text, column 2, option 8, ccsid 1208
+
+IN : with w as (select a, b from t where k = ?) select a, count(*) * 2, put_blob_to_file(max(b), ?) from w group by a
+OUT: with w as (select a, b from t where k = ?) select a, count(*) * 2, FILEOUT(max(b) ;; ?) AS PUT_BLOB_TO_FILE from w group by a
+     host variables 2, markers h0 h1
+     file 0 out: bytes, column 2, option 16, ccsid 1208
+
+IN : select put_blob_to_file(substring(b from 1 for 10), concat('/t/', a, ')')) /* c */ , a from t
+OUT: select FILEOUT(substring(b from 1 for 10) ;; concat('/t/', a, ')')) AS PUT_BLOB_TO_FILE /* c */ , a from t
+     host variables 0, markers
+     file 0 out: bytes, column 0, option 16, ccsid 1208
+
+---- used wrongly
+
+IN : select put_blob_to_file(b, '/x') from t union all select put_blob_to_file(b, '/y') from u
+ERR: 42601 "PUT_BLOB_TO_FILE" cannot be used in a query with UNION, EXCEPT or INTERSECT
+
+IN : select a, put_clob_to_file(b, '/x') from t where k = 1 except select a, b from u
+ERR: 42601 "PUT_CLOB_TO_FILE" cannot be used in a query with UNION, EXCEPT or INTERSECT
+
+IN : with w as (select 1 union select 2) select put_blob_to_file(b, '/x') from t, w intersect select b from u
+ERR: 42601 "PUT_BLOB_TO_FILE" cannot be used in a query with UNION, EXCEPT or INTERSECT
+
+IN : insert into u select put_blob_to_file(b, 'x') from t
+OUT: insert into u select FILEOUT(b ;; 'x') AS PUT_BLOB_TO_FILE from t
+     host variables 0, markers
+     file 0 out: bytes, column 0, option 16, ccsid 1208
+
+IN : select a, coalesce(put_blob_to_file(b, 'x'), 0) from t
+ERR: 42601 "PUT_BLOB_TO_FILE" must be a column of the result of a query
+
+IN : select a from t where put_blob_to_file(b, 'x') > 0
+ERR: 42601 "PUT_BLOB_TO_FILE" must be a column of the result of a query
+
+IN : select *, put_blob_to_file(b, 'x') from t
+ERR: 42601 "PUT_BLOB_TO_FILE": name the columns in front of it, * is not possible there
+
+IN : select t.*, put_blob_to_file(b, 'x') from t
+ERR: 42601 "PUT_BLOB_TO_FILE": name the columns in front of it, * is not possible there
+
+IN : update t set a = put_clob_to_file(b, 'x')
+ERR: 42601 "PUT_CLOB_TO_FILE" must be a column of the result of a query
+
+IN : select put_blob_to_file(b) from t
+ERR: 42601 "PUT_BLOB_TO_FILE" takes a value, a file name, and optionally the file option
+
+IN : select put_blob_to_file(b, 'x', 4) from t
+ERR: 42601 "PUT_BLOB_TO_FILE": the file option is 8 (new file), 16 (replace) or 32 (append)
+
+IN : select put_blob_to_file(b, 'x', 16, 1208) from t
+ERR: 42601 "PUT_BLOB_TO_FILE" takes a value, a file name, and optionally the file option
+
+IN : select put_clob_to_file(b, 'x', 16, 0) from t
+ERR: 42601 "PUT_CLOB_TO_FILE": the fourth argument is the CCSID of the file
+
+IN : select put_blob_to_file(get_blob_from_file('a'), 'x') from t
+ERR: 42601 "GET_BLOB_FROM_FILE" cannot be used inside PUT_BLOB_TO_FILE
+
+IN : select put_blob_to_file(b, 'x' from t
+ERR: 42601 "PUT_BLOB_TO_FILE": the closing parenthesis is missing
+
+IN : insert into t values(get_blob_from_file('/a' || ?))
+ERR: 42601 "GET_BLOB_FROM_FILE": the file name must be a literal or a host variable
+
+IN : insert into t values(get_blob_from_file(name))
+ERR: 42601 "GET_BLOB_FROM_FILE": the file name must be a literal or a host variable
+
+IN : insert into t values(get_blob_from_file())
+ERR: 42601 "GET_BLOB_FROM_FILE": the file name must be a literal or a host variable
+
+IN : insert into t values(get_clob_from_file('a', 2))
+ERR: 42601 "GET_CLOB_FROM_FILE": the second argument is 0 or 1
+
+---- no transaction, and a backend without file support
+
+IN : select put_blob_to_file(b, 'x') from t
+OUT: select FILEOUTNOSTAGE(b ;; 'x') AS PUT_BLOB_TO_FILE from t
+     host variables 0, markers
+     file 0 out: bytes, column 0, option 16, ccsid 1208
+
+IN : insert into t values(get_blob_from_file('a'))
+ERR: 0A000 "GET_BLOB_FROM_FILE" is not available for plain connections
+
+IN : select put_clob_to_file(b, 'x') from t
+ERR: 0A000 "PUT_CLOB_TO_FILE" is not available for plain connections
+
+---- a backend that takes the file name before the value, and a server that cannot
+
+IN : select id, put_blob_to_file(body, '/tmp/d' || id) from doc where id > ?
+OUT: select id, NAMED('/tmp/d' || id ;; body) AS PUT_BLOB_TO_FILE from doc where id > ?
+     host variables 1, markers h0
+     file 0 out: bytes, column 1, option 16, ccsid 1208
+
+IN : select put_clob_to_file(f(note, ?, ?), ?, 32, 1252) as n, ? from doc where k = ?
+OUT: select NAMED(? ;; f(note, ?, ?)) as n, ? from doc where k = ?
+     host variables 5, markers h2 h0 h1 h3 h4
+     file 0 out: text, column 0, option 32, ccsid 1252
+
+IN : select put_blob_to_file(body, ?), put_blob_to_file(g(?), concat(?, ?)) from doc
+OUT: select NAMED(? ;; body) AS PUT_BLOB_TO_FILE, NAMED(concat(?, ?) ;; g(?)) AS PUT_BLOB_TO_FILE from doc
+     host variables 4, markers h0 h2 h3 h1
+     file 0 out: bytes, column 0, option 16, ccsid 1208
+     file 1 out: bytes, column 1, option 16, ccsid 1208
+
+IN : select put_blob_to_file(f(?), '/x') from doc where k = ?
+OUT: select NAMED('/x' ;; f(?)) AS PUT_BLOB_TO_FILE from doc where k = ?
+     host variables 2, markers h0 h1
+     file 0 out: bytes, column 0, option 16, ccsid 1208
+
+IN : insert into doc values(?, get_blob_from_file(?), get_clob_from_file('/a'))
+OUT: insert into doc values(?, ?, ?)
+     host variables 2, markers h0 f0.0 f1.0
+     file 0 in : bytes, name in host variable 1
+     file 1 in : text, name [/a]
+
+IN : select put_blob_to_file(b, 'x') from t
+ERR: 0A000 this server is too old for that
+
+IN : insert into t values(get_blob_from_file('a'))
+OUT: insert into t values(?)
+     host variables 0, markers f0.0
+     file 0 in : bytes, name [a]
+

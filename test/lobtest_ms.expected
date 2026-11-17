@@ -1,0 +1,552 @@
+== LOBMS: TDS 7.4: values from files, then back to files
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_doc (id int primary key, body varbinary(max), note nvarchar(max))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into #xdb_doc (id, body) values(1, get_blob_from_file('/tmp/xdb_lobs/small.bin'))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> P s1 insert into #xdb_doc (id, body, note) values(?, get_blob_from_file(?), get_clob_from_file(?))
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 i:2|/tmp/xdb_lobs/piece.bin|/tmp/xdb_lobs/small.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:3|/tmp/xdb_lobs/over.bin|/tmp/xdb_lobs/big.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:4|/tmp/xdb_lobs/big.bin|/tmp/xdb_lobs/latin.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:5|/tmp/xdb_lobs/empty.bin|/tmp/xdb_lobs/empty.bin
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> Q select id, datalength(body) as bytes, hashbytes('MD5', body) as body_md5, len(note) as chars, hash
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 656 
+  col id type 497 len 4 ccsid 0
+  col bytes type 497 len 4 ccsid 0
+  col body_md5 type 449 len 1000 ccsid 280
+  col chars type 497 len 4 ccsid 0
+  col note_md5 type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  row: 1 1000 [1DD11C1C67D68ABFEDDAE0C16A7396DF] <null> <null>
+  row: 2 32768 [E21B69A972BB7CBFEEF6BBA26E157F6B] 87 [DB6E53BEF0BC757B104A589ACFB2F386]
+  row: 3 32769 [9A2C47C963DA964B9D286AA0E16C06C7] 1740001 [B6D842D480D005BBA835BACC642B8F3F]
+  row: 4 20971643 [0896D50456536688983F325B7F3679E0] 60 [A5BBBBD6494DCB55ED530D6A0281E054]
+  row: 5 0 [D41D8CD98F00B204E9800998ECF8427E] 0 [D41D8CD98F00B204E9800998ECF8427E]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=5 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select id, put_blob_to_file(body, '/tmp/xdb_lobs/out' + cast(id as varchar(10)) + '.bin'), put_clo
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col id type 497 len 4 ccsid 0
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+  col text_bytes type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: 1 1000 <null>
+  row: 2 32768 159
+  row: 3 32769 3180001
+  row: 4 20971643 72
+  row: 5 0 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=5 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+   md5 of small.bin: 1DD11C1C67D68ABFEDDAE0C16A7396DF
+   md5 of piece.bin: E21B69A972BB7CBFEEF6BBA26E157F6B
+   md5 of over.bin: 9A2C47C963DA964B9D286AA0E16C06C7
+   md5 of big.bin: 0896D50456536688983F325B7F3679E0
+   md5 of small.txt as UTF-16: DB6E53BEF0BC757B104A589ACFB2F386
+   md5 of big.txt as UTF-16: B6D842D480D005BBA835BACC642B8F3F
+   md5 of latin.txt as UTF-16: A5BBBBD6494DCB55ED530D6A0281E054
+   out1.bin = small.bin
+   out2.bin = piece.bin
+   out3.bin = over.bin
+   out4.bin = big.bin
+   out5.bin = empty.bin
+   out2.txt = small.txt
+   out3.txt = big.txt
+   out4.txt = latin.txt
+   out5.txt = empty.bin
+   out1.txt was not written (the value is null)
+== LOBMS: TDS 7.4: file options, CCSID of a text file, names and values in host variables, many rows
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_doc (id int primary key, body varbinary(max), note nvarchar(max))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into #xdb_doc values(1, get_blob_from_file('/tmp/xdb_lobs/over.bin'), get_clob_from_file('/
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> O c1 select put_blob_to_file(body, ?, 8) as new_file, replicate('x', 3000) as long_text from #xdb_do
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col new_file type 493 len 8 ccsid 0
+  col long_text type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 1020 
+  rows=1
+  row: 32769 []
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select put_clob_to_file(note, '/tmp/xdb_lobs/app.txt', 32) as first, put_clob_to_file(note, '/tmp/
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col first type 493 len 8 ccsid 0
+  col cp1252 type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 72 60
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select put_clob_to_file(note, '/tmp/xdb_lobs/app.txt', 32) as second, put_clob_to_file(note, '/tmp
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col second type 493 len 8 ccsid 0
+  col cp1252 type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 72 60
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select put_clob_to_file(note + replicate(cast(nchar(232) as nvarchar(max)), 70000), '/tmp/xdb_lobs
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col long_cp1252 type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 70060
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select put_blob_to_file(?, ? + '.bin') as from_markers, ? as third ## bytes of a host variable|/tm
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col from_markers type 493 len 8 ccsid 0
+  col third type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 24 [3]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X create table #n (i int primary key)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X declare @i int; set @i = 1; while @i <= 300 begin insert into #n values(@i); set @i = @i + 1 end
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select put_clob_to_file(cast(i as varchar(10)) + char(10), '/tmp/xdb_lobs/app_many.txt', 32) as n,
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col n type 493 len 8 ccsid 0
+  col filler type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 2 []
+  row: 2 []
+  row: 2 []
+  row: 2 []
+  row: 2 []
+  row: 2 []
+  row: 2 []
+  row: 2 []
+  row: 2 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+  row: 3 []
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=300 in 9 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> P s1 update #xdb_doc set body = get_blob_from_file(?), note = ? where id = ?
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 /tmp/xdb_lobs/small.bin|second|i:1
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> Q select id, datalength(body) as bytes, note from #xdb_doc
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col id type 497 len 4 ccsid 0
+  col bytes type 497 len 4 ccsid 0
+  col note type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: 1 1000 [second]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> R select id, put_blob_to_file(body, '/tmp/xdb_lobs/out r ' + cast(id as varchar(10)) + ' ' + nchar(2
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col id type 497 len 4 ccsid 0
+  col bytes written type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 1 1000
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ISO *NONE
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_doc2 (id int primary key, body varbinary(max))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into #xdb_doc2 (id, body) values(1, get_blob_from_file('/tmp/xdb_lobs/over.bin'))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/out_none.bin') as without_commit from #xdb_doc2
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col without_commit type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 32769
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X drop table #xdb_doc2
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== LOBMS: TDS 7.4: option 8 and a file that exists
+> ISO *NONE
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> O c1 select put_blob_to_file(?, ?, 8) as new_file ## abc|/tmp/xdb_lobs/out_new.bin
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col new_file type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+> F c1
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 17: file "/tmp/xdb_lobs/out_new.bin" cannot be written: exists already (reason 5)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 outlen 5 
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+   out_new.bin = over.bin
+   out r 1 è.bin = small.bin
+   out_none.bin = over.bin
+   app.txt has 144 bytes, app2.txt 120, out_euro.txt 70060
+   app2.txt as CP1252: Città è perché
+   out_marker.bin: bytes of a host variable
+   app_many.txt: 300 lines, in order: yes
+== LOBMS: TDS 7.4: what goes wrong with a file that is read, and with the statement
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X if object_id('xdb_lobt') is not null drop table xdb_lobt
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create table xdb_lobt (id int primary key, body varbinary(max), note nvarchar(max))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_lobt (id, body) values(1, get_blob_from_file('/tmp/xdb_lobs/nofile.bin'))
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 2: file "/tmp/xdb_lobs/nofile.bin" cannot be read: not found (reason 4)
+ARXI0100 -> sqlcode -452 sqlstate 428A1 outlen 1 
+  rows=0
+> X insert into xdb_lobt (id, body) values(1, get_blob_from_file('/tmp/xdb_lobs/dir.bin'))
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 21: file "/tmp/xdb_lobs/dir.bin" cannot be read: is a directory (reason 1)
+ARXI0100 -> sqlcode -452 sqlstate 428A1 outlen 1 
+  rows=0
+> X insert into xdb_lobt (id, body) values(1, get_blob_from_file(''))
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 22: file name is empty or null (reason 1)
+ARXI0100 -> sqlcode -452 sqlstate 428A1 outlen 1 
+  rows=0
+> X insert into xdb_lobt (id, note) values(8, get_clob_from_file('/tmp/xdb_lobs/bad.txt'))
+JOBLOG XDB LOBMS (mssql) SQLSTATE 22021, error 0: file "/tmp/xdb_lobs/bad.txt" cannot be read: its text is not valid at byte 4
+ARXI0100 -> sqlcode -438 sqlstate 22021 outlen 1 file "/tmp/xdb_lobs/bad.txt" cannot be read: its text is not valid at
+  rows=0
+> P s1 insert into xdb_lobt (id, body) values(?, get_blob_from_file(?))
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 i:1|/tmp/xdb_lobs/over.bin
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:1|/tmp/xdb_lobs/small.bin
+ARXP0100 -> sqlcode -803 sqlstate 23505 outlen 1 {xdb_lobt_pkey|*N|*N|*N}
+  rows=0
+> E s1 i:2|/tmp/xdb_lobs/small.bin
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> Q select id, datalength(body) as bytes, hashbytes('MD5', body) as body_md5 from xdb_lobt order by id
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col id type 497 len 4 ccsid 0
+  col bytes type 497 len 4 ccsid 0
+  col body_md5 type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: 1 32769 [9A2C47C963DA964B9D286AA0E16C06C7]
+  row: 2 1000 [1DD11C1C67D68ABFEDDAE0C16A7396DF]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=2 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X select put_clob_to_file(note, '/tmp/xdb_lobs/out_i.txt') from xdb_lobt
+JOBLOG XDB LOBMS (mssql) SQLSTATE 42601, error 0: "PUT_CLOB_TO_FILE" needs a cursor: PREPARE, DECLARE CURSOR, OPEN, FETCH
+ARXI0100 -> sqlcode -104 sqlstate 42601 outlen 1 {PUT_CLOB_TO_FILE|*N}
+  rows=0
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/out_u.bin') from xdb_lobt union all select body from 
+JOBLOG XDB LOBMS (mssql) SQLSTATE 42601, error 0: "PUT_BLOB_TO_FILE" cannot be used in a query with UNION, EXCEPT or INTERSECT
+ARPD0100 -> sqlcode -104 sqlstate 42601 outlen 0 {PUT_BLOB_TO_FILE|*N}
+> Q select id from xdb_lobt where body = get_blob_from_file('/tmp/xdb_lobs/small.bin')
+ARPD0100 -> sqlcode -84 sqlstate 0A000 outlen 0 "GET_BLOB_FROM_FILE" is not supported in a statement that returns rows
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+   md5 of over.bin: 9A2C47C963DA964B9D286AA0E16C06C7
+   md5 of small.bin: 1DD11C1C67D68ABFEDDAE0C16A7396DF
+== LOBMS: TDS 7.4: what goes wrong with a file that is written: no such directory
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/nodir/x.bin') from xdb_lobt where id = 1
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 2: file "/tmp/xdb_lobs/nodir/x.bin" cannot be written: not found (reason 4)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 
+  total rows=0 in 0 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== LOBMS: TDS 7.4: what goes wrong with a file that is written: a directory
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/dir.bin') from xdb_lobt where id = 1
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 21: file "/tmp/xdb_lobs/dir.bin" cannot be written: is a directory (reason 1)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 
+  total rows=0 in 0 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== LOBMS: TDS 7.4: what goes wrong with a file that is written: no name
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select put_blob_to_file(body, null) from xdb_lobt where id = 1
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 22: file name is empty or null (reason 1)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 
+  total rows=0 in 0 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== LOBMS: TDS 7.4: what goes wrong with a file that is written: a name too long
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select put_blob_to_file(body, replicate('a', 2000)) from xdb_lobt where id = 1
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 0: file name of a row is too long (reason 2)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 
+  total rows=0 in 0 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== LOBMS: TDS 7.4: what goes wrong with a file that is written: the second file of a row
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/out_x.bin', 8), put_blob_to_file(body, '/tmp/xdb_lobs
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 2: file "/tmp/xdb_lobs/nodir/y.bin" cannot be written: not found (reason 4)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 
+  total rows=0 in 0 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== LOBMS: TDS 7.4: what goes wrong with a file that is written: the file exists (it is the one the test before wrote)
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/out_x.bin', 8) as new_file from xdb_lobt where id = 1
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col new_file type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+JOBLOG XDB LOBMS (mssql) SQLSTATE 428A1, error 17: file "/tmp/xdb_lobs/out_x.bin" cannot be written: exists already (reason 5)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 
+  total rows=0 in 0 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+   out_x.bin = over.bin
+   (out_x.bin is the first column of a row whose second column failed: complete, so it stays)
+== LOBMS: TDS 7.4: the connections after those work; the table of the test is dropped
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select id, put_blob_to_file(body, '/tmp/xdb_lobs/out_y' + cast(id as varchar(10)) + '.bin') as b f
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col id type 497 len 4 ccsid 0
+  col b type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 1 32769
+  row: 2 1000
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=2 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X drop table xdb_lobt
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+   out_y1.bin = over.bin
+   out_y2.bin = small.bin
+== LOBM1: TDS 7.1: text as ntext to the server, values back the way that level sends them
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_doc (id int primary key, body varbinary(max), note nvarchar(max))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> P s1 insert into #xdb_doc (id, note) values(?, get_clob_from_file(?))
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 i:2|/tmp/xdb_lobs/small.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:3|/tmp/xdb_lobs/big.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:5|/tmp/xdb_lobs/empty.bin
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X update #xdb_doc set body = cast(note as varbinary(max)) where id = 3
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X insert into #xdb_doc (id, body) values(6, cast(replicate(cast('0123456789' as varchar(max)), 30000
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> Q select id, datalength(body) as bytes, len(note) as chars, hashbytes('MD5', cast(note as varbinary(
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 528 
+  col id type 497 len 4 ccsid 0
+  col bytes type 497 len 4 ccsid 0
+  col chars type 497 len 4 ccsid 0
+  col note_md5 type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 288 
+  row: 2 <null> 87 [DB6E53BEF0BC757B104A589ACFB2F386]
+  row: 3 3720002 1740001 [B6D842D480D005BBA835BACC642B8F3F]
+  row: 5 <null> 0 [D41D8CD98F00B204E9800998ECF8427E]
+  row: 6 3000000 <null> <null>
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=4 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select id, put_blob_to_file(body, '/tmp/xdb_lobs/out71_' + cast(id as varchar(10)) + '.bin'), put_
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col id type 497 len 4 ccsid 0
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+  col text_bytes type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: 2 <null> 159
+  row: 3 3720002 3180001
+  row: 5 <null> 0
+  row: 6 3000000 <null>
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=4 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/out71_again.bin') as once_more from #xdb_doc where id
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col once_more type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 3000000
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/nodir/x.bin') from #xdb_doc where id = 6
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col PUT_BLOB_TO_FILE type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+JOBLOG XDB LOBM1 (mssql) SQLSTATE 428A1, error 2: file "/tmp/xdb_lobs/nodir/x.bin" cannot be written: not found (reason 4)
+ARFC0100 -> sqlcode -452 sqlstate 428A1 
+  total rows=0 in 0 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+   md5 of small.txt as UTF-16: DB6E53BEF0BC757B104A589ACFB2F386
+   md5 of big.txt as UTF-16: B6D842D480D005BBA835BACC642B8F3F
+   out71_2.txt = small.txt
+   out71_3.txt = big.txt
+   out71_5.txt = empty.bin
+   out71_3.bin = big.txt as UTF-16
+   out71_6.bin: 3000000 bytes, the digits repeated: True
+   out71_again.bin: 3000000 bytes, the digits repeated: True
+== LOBM0: the mock as SQL Server 2000 (TDS 7.1): bytes as image, text as ntext; no way back
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table xdb_doc (id int primary key, body image, note ntext)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_doc (id, body) values(1, get_blob_from_file('/tmp/xdb_lobs/small.bin'))
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> P s1 insert into xdb_doc (id, body, note) values(?, get_blob_from_file(?), get_clob_from_file(?))
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 i:2|/tmp/xdb_lobs/piece.bin|/tmp/xdb_lobs/small.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:3|/tmp/xdb_lobs/over.bin|/tmp/xdb_lobs/big.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:4|/tmp/xdb_lobs/big.bin|/tmp/xdb_lobs/latin.txt
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:5|/tmp/xdb_lobs/empty.bin|/tmp/xdb_lobs/empty.bin
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1 i:5|/tmp/xdb_lobs/small.bin|/tmp/xdb_lobs/small.txt
+JOBLOG XDB LOBM0 (mssql) SQLSTATE 23505, error 2627: Violation of PRIMARY KEY constraint. Cannot insert duplicate key (UNIQUE constraint failed: xdb_doc.id).
+ARXP0100 -> sqlcode -803 sqlstate 23505 outlen 1 {*N|*N|*N|*N}
+  rows=0
+> Q select id, length(body) as bytes, xdb_md5(body) as body_md5, length(note) as chars, xdb_md5(note) 
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 656 
+  col id type 497 len 4 ccsid 0
+  col bytes type 449 len 4000 ccsid 280
+  col body_md5 type 449 len 4000 ccsid 280
+  col chars type 449 len 4000 ccsid 280
+  col note_md5 type 449 len 4000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  row: 1 [1000] [1dd11c1c67d68abfeddae0c16a7396df] <null> <null>
+  row: 2 [32768] [e21b69a972bb7cbfeef6bba26e157f6b] [87] [7ce00b632326131b8b2a77b115a20c07]
+  row: 3 [32769] [9a2c47c963da964b9d286aa0e16c06c7] [1740001] [46fefefc98fbd186df82d89bbcda730a]
+  row: 4 [20971643] [0896d50456536688983f325b7f3679e0] [60] [25d4116761c1d2fc8a98c1d971e4f449]
+  row: 5 [0] [d41d8cd98f00b204e9800998ecf8427e] [0] [d41d8cd98f00b204e9800998ecf8427e]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=5 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select put_blob_to_file(body, '/tmp/xdb_lobs/out_2000.bin') from xdb_doc
+JOBLOG XDB LOBM0 (mssql) SQLSTATE 0A000, error 0: "PUT_BLOB_TO_FILE" needs SQL Server 2005 or later (this is version 8.0)
+ARPD0100 -> sqlcode -84 sqlstate 0A000 outlen 0 "PUT_BLOB_TO_FILE" needs SQL Server 2005 or later (this is version 8.0
+> X drop table xdb_doc
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+   md5 of small.bin: 1DD11C1C67D68ABFEDDAE0C16A7396DF
+   md5 of piece.bin: E21B69A972BB7CBFEEF6BBA26E157F6B
+   md5 of over.bin: 9A2C47C963DA964B9D286AA0E16C06C7
+   md5 of big.bin: 0896D50456536688983F325B7F3679E0
+   md5 of small.txt: 7CE00B632326131B8B2A77B115A20C07
+   md5 of big.txt: 46FEFEFC98FBD186DF82D89BBCDA730A
+   md5 of latin.txt: 25D4116761C1D2FC8A98C1D971E4F449
+   (the mock shows them in lower case)
+   files in /tmp/xdb_lobs beginning with out: 23

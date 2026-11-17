@@ -1,0 +1,16 @@
+[]                     user MARIO  groups []         []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[*ALL]                 user MARIO  groups []         []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[*all]                 user MARIO  groups []         []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[MARIO]                user MARIO  groups []         []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[mario]                user MARIO  groups []         []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[LUIGI]                user MARIO  groups []         []              ARCN0100 -> sqlcode -30082 sqlstate 28000 user MARIO is not among the users allowed for connection profile ALWPG
+[LUIGI  MARIO]         user MARIO  groups []         []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[LUIGI GRPIT]          user MARIO  groups [GRPIT]    []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[LUIGI GRPIT]          user MARIO  groups [GRPX GRPY] []              ARCN0100 -> sqlcode -30082 sqlstate 28000 user MARIO is not among the users allowed for connection profile ALWPG
+[A B GRPY]             user MARIO  groups [GRPX GRPY] []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[MARIOX]               user MARIO  groups []         []              ARCN0100 -> sqlcode -30082 sqlstate 28000 user MARIO is not among the users allowed for connection profile ALWPG
+[MARI]                 user MARIO  groups []         []              ARCN0100 -> sqlcode -30082 sqlstate 28000 user MARIO is not among the users allowed for connection profile ALWPG
+[VERYLONGNAMEXX]       user MARIO  groups []         []              ARCN0100 -> sqlcode -30082 sqlstate 28000 user MARIO is not among the users allowed for connection profile ALWPG
+[LUIGI *ALL]           user MARIO  groups []         []              ARCN0100 -> sqlcode 0 sqlstate 00000 
+[LUIGI]                user MARIO  groups []         [postgres xdbpw] ARCN0100 -> sqlcode -30082 sqlstate 28000 user MARIO is not among the users allowed for connection profile ALWPG
+[MARIO]                user MARIO  groups []         [postgres xdbpw] ARCN0100 -> sqlcode 0 sqlstate 00000 

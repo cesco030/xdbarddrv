@@ -1,0 +1,106 @@
+== pass 1: profile as it is
+connect -> 0 00000
+temporary table -> 0 00000
+a.bin, bytes written: 800 (1 rows)
+b.bin, bytes written: 4000000 (1 rows)
+prepare insert with get_blob_from_file(?) -> 0 00000
+insert a.bin -> 0 00000
+insert b.bin -> 0 00000
+a.bin in the table is what the server made (1 = yes): 1 (1 rows)
+b.bin in the table is what the server made (1 = yes): 1 (1 rows)
+bytes of both in the table: 4000800 (2 rows)
+c1.bin and c2.bin, bytes written: 4000800 (2 rows)
+t1208.txt (UTF-8), bytes written: 375000 (1 rows)
+t280.txt (EBCDIC Italy), bytes written: 285000 (1 rows)
+t1252.txt (Windows), bytes written: 285000 (1 rows)
+insert t1208.txt -> 0 00000
+insert t280.txt -> 0 00000
+insert t1252.txt -> 0 00000
+texts in the table equal to the original (3 = all): 3 (1 rows)
+e acute and a line feed appended to t280.txt, bytes: 2 (1 rows)
+insert t280.txt again -> 0 00000
+it is the original and what was appended (1 = yes): 1 (1 rows)
+t280.txt replaced, bytes written (as many as in CCSID 280): 285000 (1 rows)
+insert t280.txt a third time -> 0 00000
+it is the original again (1 = yes): 1 (1 rows)
+u1208.txt (euro sign, Japanese), bytes written: 300000 (1 rows)
+insert u1208.txt -> 0 00000
+that text in the table equal to the original (1 = yes): 1 (1 rows)
+option 8 (new file) on c1.bin, which exists (fetch, after 0 rows) -> -452 428A1 reason 5  [Unable to access a file that is referred to by a file reference variable.]
+option 8 on new.bin: 800 (1 rows)
+option 32 (append) to app.txt: 5 (1 rows)
+option 32 (append) to app.txt again: 5 (1 rows)
+a null value to null.bin: 0 (1 rows, 1 null)
+a file that is not there -> -452 428A1 reason 4  [Unable to access a file that is referred to by a file reference variable.]
+the same with the name in a host variable -> -452 428A1 reason 4  [Unable to access a file that is referred to by a file reference variable.]
+a directory as file -> -452 428A1 reason 1  [Unable to access a file that is referred to by a file reference variable.]
+a directory that is not there (fetch, after 0 rows) -> -452 428A1 reason 4  [Unable to access a file that is referred to by a file reference variable.]
+a key that exists, after the file was sent -> -803 23505  [Duplicate key value specified.]
+the function in the wrong place -> -104 42601  [Token PUT_CLOB_TO_FILE was not valid. Valid tokens: *N.]
+rows in the table after the errors (8): 8 (1 rows)
+large objects left behind by this run: 0
+rollback -> 0 00000
+   c1.bin = a.bin
+   c2.bin = b.bin
+   new.bin = a.bin
+   a.bin: 800 bytes, CCSID 65535
+   b.bin: 4000000 bytes, CCSID 65535
+   t1208.txt: 375000 bytes, CCSID 1208
+   t280.txt: 285000 bytes, CCSID 280
+   t1252.txt: 285000 bytes, CCSID 1252
+   u1208.txt: 300000 bytes, CCSID 1208
+   app.txt: 10 bytes, CCSID 1208
+   null.bin was not written
+== pass 2: lob_direct = 64, the large values are staged
+connect -> 0 00000
+temporary table -> 0 00000
+a.bin, bytes written: 800 (1 rows)
+b.bin, bytes written: 3200000 (1 rows)
+prepare insert with get_blob_from_file(?) -> 0 00000
+insert a.bin -> 0 00000
+insert b.bin -> 0 00000
+a.bin in the table is what the server made (1 = yes): 1 (1 rows)
+b.bin in the table is what the server made (1 = yes): 1 (1 rows)
+bytes of both in the table: 3200800 (2 rows)
+c1.bin and c2.bin, bytes written: 3200800 (2 rows)
+t1208.txt (UTF-8), bytes written: 375000 (1 rows)
+t280.txt (EBCDIC Italy), bytes written: 285000 (1 rows)
+t1252.txt (Windows), bytes written: 285000 (1 rows)
+insert t1208.txt -> 0 00000
+insert t280.txt -> 0 00000
+insert t1252.txt -> 0 00000
+texts in the table equal to the original (3 = all): 3 (1 rows)
+e acute and a line feed appended to t280.txt, bytes: 2 (1 rows)
+insert t280.txt again -> 0 00000
+it is the original and what was appended (1 = yes): 1 (1 rows)
+t280.txt replaced, bytes written (as many as in CCSID 280): 285000 (1 rows)
+insert t280.txt a third time -> 0 00000
+it is the original again (1 = yes): 1 (1 rows)
+u1208.txt (euro sign, Japanese), bytes written: 300000 (1 rows)
+insert u1208.txt -> 0 00000
+that text in the table equal to the original (1 = yes): 1 (1 rows)
+option 8 (new file) on c1.bin, which exists (fetch, after 0 rows) -> -452 428A1 reason 5  [Unable to access a file that is referred to by a file reference variable.]
+option 8 on new.bin: 800 (1 rows)
+option 32 (append) to app.txt: 5 (1 rows)
+option 32 (append) to app.txt again: 5 (1 rows)
+a null value to null.bin: 0 (1 rows, 1 null)
+a file that is not there -> -452 428A1 reason 4  [Unable to access a file that is referred to by a file reference variable.]
+the same with the name in a host variable -> -452 428A1 reason 4  [Unable to access a file that is referred to by a file reference variable.]
+a directory as file -> -452 428A1 reason 1  [Unable to access a file that is referred to by a file reference variable.]
+a directory that is not there (fetch, after 0 rows) -> -452 428A1 reason 4  [Unable to access a file that is referred to by a file reference variable.]
+a key that exists, after the file was sent -> -803 23505  [Duplicate key value specified.]
+the function in the wrong place -> -104 42601  [Token PUT_CLOB_TO_FILE was not valid. Valid tokens: *N.]
+rows in the table after the errors (8): 8 (1 rows)
+large objects left behind by this run: 0
+rollback -> 0 00000
+   c1.bin = a.bin
+   c2.bin = b.bin
+   new.bin = a.bin
+   a.bin: 800 bytes, CCSID 65535
+   b.bin: 3200000 bytes, CCSID 65535
+   t1208.txt: 375000 bytes, CCSID 1208
+   t280.txt: 285000 bytes, CCSID 280
+   t1252.txt: 285000 bytes, CCSID 1252
+   u1208.txt: 300000 bytes, CCSID 1208
+   app.txt: 10 bytes, CCSID 1208
+   null.bin was not written

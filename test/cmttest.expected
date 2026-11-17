@@ -1,0 +1,655 @@
+== CMTPG alone: nothing is lost
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> D
+== CMTPG alone: the session ends while the program does something else, then COMMIT
+> C
+> X insert into xdb_cmt_t values (2)
+outside: the PostgreSQL session is ended
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 40001, error *: COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTPG (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [pg] [CMTPG] [COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back]
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [1]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [1]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+> D
+== CMTPG alone: only read, the session ends, COMMIT
+> C
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> X set application_name = 'xdbcmt'
+outside: the PostgreSQL session is ended
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> COMMIT
+> D
+== CMTPG alone: the session ends, ROLLBACK
+> C
+> X insert into xdb_cmt_t values (3)
+outside: the PostgreSQL session is ended
+> ROLLBACK
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> X insert into xdb_cmt_t values (4)
+> COMMIT
+outside: rows committed: PostgreSQL 2, MySQL 0, SQL Server 0
+> D
+== CMTPG alone: the session ends, the next statement is told (-911), the program goes on and commits
+> C
+> X insert into xdb_cmt_t values (5)
+outside: the PostgreSQL session is ended
+> X insert into xdb_cmt_t values (6)
+ARXI0100 -> sqlcode -911 sqlstate 40001 outlen 1 connection lost while idle; reconnected, the unit of work was rolled b
+> X insert into xdb_cmt_t values (7)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [its changes on the server are lost: COMMIT will fail]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [1]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 40001, error *: COMMIT refused: what this unit of work changed on the server was lost earlier (the connection was lost); the whole unit of work is rolled back
+  CMTPG (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 2, MySQL 0, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [pg] [CMTPG] [COMMIT refused: what this unit of work changed on the server was lost earlier (the connection was lost); the whole unit of work is rolled back]
+> X insert into xdb_cmt_t values (8)
+> COMMIT
+outside: rows committed: PostgreSQL 3, MySQL 0, SQL Server 0
+> D
+== CMTPG alone: the session ends and COMMIT comes at once, before the driver would test the connection
+> C
+> X insert into xdb_cmt_t values (9)
+outside: the PostgreSQL session is ended
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 08007, error *: COMMIT failed: the connection was lost while the server was asked, whether it has committed is not known (connection lost; reconnected: FATAL:  terminating connection due to administrator command); the whole unit of work is rolled back
+  CMTPG (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 3, MySQL 0, SQL Server 0
+> Q select * from xdb_last_error
+  row: -30080 [08007] 0 [pg] [CMTPG] [COMMIT failed: the connection was lost while the server was asked, whether it has committed is not known (connection lost; reconnected: FATAL:  terminating connection due to administrator command); the whole unit of work is rolled back]
+> D
+== CMTMY alone: nothing is lost
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 1, SQL Server 0
+> D
+== CMTMY alone: the session ends while the program does something else, then COMMIT
+> C
+> X insert into xdb_cmt_t values (2)
+outside: the MySQL session is ended
+> COMMIT
+JOBLOG XDB CMTMY (mysql) SQLSTATE 40001, error *: COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTMY (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 1, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mysql] [CMTMY] [COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back]
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [1]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [1]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+> D
+== CMTMY alone: only read, the session ends, COMMIT
+> C
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> X set @xdb_cmt = 1
+outside: the MySQL session is ended
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 1, SQL Server 0
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> COMMIT
+> D
+== CMTMY alone: the session ends, ROLLBACK
+> C
+> X insert into xdb_cmt_t values (3)
+outside: the MySQL session is ended
+> ROLLBACK
+outside: rows committed: PostgreSQL 0, MySQL 1, SQL Server 0
+> X insert into xdb_cmt_t values (4)
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 2, SQL Server 0
+> D
+== CMTMY alone: the session ends, the next statement is told (-911), the program goes on and commits
+> C
+> X insert into xdb_cmt_t values (5)
+outside: the MySQL session is ended
+> X insert into xdb_cmt_t values (6)
+ARXI0100 -> sqlcode -911 sqlstate 40001 outlen 1 connection lost while idle; reconnected, the unit of work was rolled b
+> X insert into xdb_cmt_t values (7)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [its changes on the server are lost: COMMIT will fail]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [1]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+JOBLOG XDB CMTMY (mysql) SQLSTATE 40001, error *: COMMIT refused: what this unit of work changed on the server was lost earlier (the connection was lost); the whole unit of work is rolled back
+  CMTMY (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 2, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mysql] [CMTMY] [COMMIT refused: what this unit of work changed on the server was lost earlier (the connection was lost); the whole unit of work is rolled back]
+> X insert into xdb_cmt_t values (8)
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 3, SQL Server 0
+> D
+== CMTMY alone: the session ends and COMMIT comes at once, before the driver would test the connection
+> C
+> X insert into xdb_cmt_t values (9)
+outside: the MySQL session is ended
+> COMMIT
+JOBLOG XDB CMTMY (mysql) SQLSTATE 08007, error *: COMMIT failed: the connection was lost while the server was asked, whether it has committed is not known (MySQL connection lost (read)); the whole unit of work is rolled back
+  CMTMY (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 3, SQL Server 0
+> Q select * from xdb_last_error
+  row: -30080 [08007] 0 [mysql] [CMTMY] [COMMIT failed: the connection was lost while the server was asked, whether it has committed is not known (MySQL connection lost (read)); the whole unit of work is rolled back]
+> D
+== CMTMS alone: nothing is lost
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 1
+> D
+== CMTMS alone: the session ends while the program does something else, then COMMIT
+> C
+> X insert into xdb_cmt_t values (2)
+outside: the SQL Server session is ended
+> COMMIT
+JOBLOG XDB CMTMS (mssql) SQLSTATE 40001, error *: COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTMS (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 1
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mssql] [CMTMS] [COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back]
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [1]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [1]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+> D
+== CMTMS alone: only read, the session ends, COMMIT
+> C
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> X set nocount off
+outside: the SQL Server session is ended
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 1
+> Q select count(*) from xdb_cmt_t
+  row: 1
+> COMMIT
+> D
+== CMTMS alone: the session ends, ROLLBACK
+> C
+> X insert into xdb_cmt_t values (3)
+outside: the SQL Server session is ended
+> ROLLBACK
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 1
+> X insert into xdb_cmt_t values (4)
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 2
+> D
+== CMTMS alone: the session ends, the next statement is told (-911), the program goes on and commits
+> C
+> X insert into xdb_cmt_t values (5)
+outside: the SQL Server session is ended
+> X insert into xdb_cmt_t values (6)
+ARXI0100 -> sqlcode -911 sqlstate 40001 outlen 1 connection lost while idle; reconnected, the unit of work was rolled b
+> X insert into xdb_cmt_t values (7)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [its changes on the server are lost: COMMIT will fail]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [1]
+  row: [counters] [units_of_work_lost] [1]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+JOBLOG XDB CMTMS (mssql) SQLSTATE 40001, error *: COMMIT refused: what this unit of work changed on the server was lost earlier (the connection was lost); the whole unit of work is rolled back
+  CMTMS (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 2
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mssql] [CMTMS] [COMMIT refused: what this unit of work changed on the server was lost earlier (the connection was lost); the whole unit of work is rolled back]
+> X insert into xdb_cmt_t values (8)
+> COMMIT
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 3
+> D
+== CMTMS alone: the session ends and COMMIT comes at once, before the driver would test the connection
+> C
+> X insert into xdb_cmt_t values (9)
+outside: the SQL Server session is ended
+> COMMIT
+JOBLOG XDB CMTMS (mssql) SQLSTATE 08007, error *: COMMIT failed: the connection was lost while the server was asked, whether it has committed is not known (SQL Server connection lost (read)); the whole unit of work is rolled back
+  CMTMS (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 3
+> Q select * from xdb_last_error
+  row: -30080 [08007] 0 [mssql] [CMTMS] [COMMIT failed: the connection was lost while the server was asked, whether it has committed is not known (SQL Server connection lost (read)); the whole unit of work is rolled back]
+> D
+== MySQL closes the session for inactivity (wait_timeout), it was only read, COMMIT
+> C
+> Q select count(*) from xdb_cmt_t
+  row: 0
+> X set session wait_timeout = 1
+> COMMIT
+> Q select * from xdb_last_error
+> D
+== MySQL closes the session for inactivity (wait_timeout), a row was written, COMMIT
+> C
+> X insert into xdb_cmt_t values (1)
+> X set session wait_timeout = 1
+> COMMIT
+JOBLOG XDB CMTMZ (mysql) SQLSTATE 40001, error *: COMMIT failed: the server ended the session instead of committing (The client was disconnected by the server because of inactivity. See wait_timeout and interactive_timeout for configuring this behavior.); the whole unit of work is rolled back
+  CMTMZ (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mysql] [CMTMZ] [COMMIT failed: the server ended the session instead of committing (The client was disconnected by the server because of inactivity. See wait_timeout and interactive_timeout for configuring this behavior.); the whole unit of work is rolled back]
+> D
+== CMTPZ, never tested (idle_check = 0): the session ends between two statements of a unit of work
+> C
+> X insert into xdb_cmt_t values (1)
+outside: the PostgreSQL session is ended
+> X insert into xdb_cmt_t values (2)
+JOBLOG XDB CMTPZ (pg) SQLSTATE 08006, error *: connection lost; reconnected, work rolled back: FATAL:  terminating connection due to administrator command
+ARXI0100 -> sqlcode -911 sqlstate 40001 outlen 1 connection lost; reconnected, work rolled back: FATAL:  terminating co
+> X insert into xdb_cmt_t values (3)
+> COMMIT
+JOBLOG XDB CMTPZ (pg) SQLSTATE 40001, error *: COMMIT refused: what this unit of work changed on the server was lost earlier (connection lost; reconnected, work rolled back: FATAL:  terminating connection due to administrator command); the whole unit of work is rolled back
+  CMTPZ (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 0
+> X insert into xdb_cmt_t values (4)
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> D
+== CMTMZ, never tested (idle_check = 0): the session ends between two statements of a unit of work
+> C
+> X insert into xdb_cmt_t values (1)
+outside: the MySQL session is ended
+> X insert into xdb_cmt_t values (2)
+ARXI0100 -> sqlcode -911 sqlstate 40001 outlen 1 MySQL connection lost (read)
+> X insert into xdb_cmt_t values (3)
+> COMMIT
+JOBLOG XDB CMTMZ (mysql) SQLSTATE 40001, error *: COMMIT refused: what this unit of work changed on the server was lost earlier (the connection was lost); the whole unit of work is rolled back
+  CMTMZ (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> X insert into xdb_cmt_t values (4)
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 1, SQL Server 0
+> D
+== PostgreSQL: the server refuses the COMMIT (a constraint that is checked at the end)
+> C
+> X insert into xdb_cmt_d values (1)
+> X insert into xdb_cmt_d values (1)
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 23505, error *: COMMIT refused by the server: duplicate key value violates unique constraint "xdb_cmt_d_u"; the whole unit of work is rolled back
+  CMTPG (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+> Q select * from xdb_last_error
+  row: -803 [23505] 0 [pg] [CMTPG] [COMMIT refused by the server: duplicate key value violates unique constraint "xdb_cmt_d_u"; the whole unit of work is rolled back]
+> Q select count(*) from xdb_cmt_d
+  row: 0
+> COMMIT
+> D
+== PostgreSQL without a savepoint for each statement: a statement fails, the program commits
+> C
+> X insert into xdb_cmt_t values (1)
+> X insert into no_such_table values (1)
+ARXI0100 -> sqlcode -204 sqlstate 42704 outlen 1 {no_such_table|*N|N}
+> COMMIT
+JOBLOG XDB CMTPN (pg) SQLSTATE 25P02, error *: COMMIT refused by the server: a statement of the transaction had failed, the server has rolled the transaction back; the whole unit of work is rolled back
+  CMTPN (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 0
+> Q select * from xdb_last_error
+  row: -438 [25P02] 0 [pg] [CMTPN] [COMMIT refused by the server: a statement of the transaction had failed, the server has rolled the transaction back; the whole unit of work is rolled back]
+> D
+== option commit_vote = off: the connection is only told, a lost session cannot stop the commit
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [only told: a commit that fails here does not stop the rest]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+outside: the PostgreSQL session is ended
+> COMMIT
+JOBLOG XDB CMTPO (pg) SQLSTATE 40001, error *: COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; THE REST OF THE UNIT OF WORK IS COMMITTED (this connection could not stop the commit)
+outside: rows committed: PostgreSQL 0, MySQL 0, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [pg] [CMTPO] [COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; THE REST OF THE UNIT OF WORK IS COMMITTED (this connection could not stop the commit)]
+> D
+== a system that takes no last agent: the connection is asked before the commit
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [asked before the commit: a lost connection rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+> X insert into xdb_cmt_t values (2)
+outside: the PostgreSQL session is ended
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 40001, error *: COMMIT refused: the connection to the server is lost, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTPG votes against the commit
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> D
+== a system that takes no resource at all: every statement is committed at once
+> C
+> X insert into xdb_cmt_t values (1)
+> X insert into xdb_cmt_t values (2)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [refused by the system: commit after each statement]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 0
+> D
+outside: rows committed: PostgreSQL 2, MySQL 0, SQL Server 0
+== CMTPG then CMTMY: nothing is lost
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [asked before the commit: a lost connection rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 1, SQL Server 0
+== CMTPG then CMTMY: the session on CMTMY ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (2)
+> C
+> X insert into xdb_cmt_t values (2)
+outside: the MySQL session is ended
+> COMMIT
+JOBLOG XDB CMTMY (mysql) SQLSTATE 40001, error *: COMMIT refused: the connection to the server is lost, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTMY votes against the commit
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 1, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mysql] [CMTMY] [COMMIT refused: the connection to the server is lost, and what this unit of work changed there with it; the whole unit of work is rolled back]
+== CMTPG then CMTMY: the session on CMTPG ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (3)
+> C
+> X insert into xdb_cmt_t values (3)
+outside: the PostgreSQL session is ended
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 40001, error *: COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTPG (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 1, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [pg] [CMTPG] [COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back]
+== CMTPG then CMTMY: CMTMY is only read and its session ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (4)
+> C
+> Q select count(*) from xdb_cmt_t
+  row: 1
+outside: the MySQL session is ended
+> COMMIT
+outside: rows committed: PostgreSQL 2, MySQL 1, SQL Server 0
+== CMTPG then CMTMY: CMTPG is disconnected and connected again
+> C
+> X insert into xdb_cmt_t values (5)
+> C
+> X insert into xdb_cmt_t values (5)
+> COMMIT
+> D
+> C
+> X insert into xdb_cmt_t values (6)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 4, MySQL 2, SQL Server 0
+== CMTMY then CMTPG: nothing is lost
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [asked before the commit: a lost connection rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 1, SQL Server 0
+== CMTMY then CMTPG: the session on CMTPG ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (2)
+> C
+> X insert into xdb_cmt_t values (2)
+outside: the PostgreSQL session is ended
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 40001, error *: COMMIT refused: the connection to the server is lost, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTPG votes against the commit
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 1, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [pg] [CMTPG] [COMMIT refused: the connection to the server is lost, and what this unit of work changed there with it; the whole unit of work is rolled back]
+== CMTMY then CMTPG: the session on CMTMY ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (3)
+> C
+> X insert into xdb_cmt_t values (3)
+outside: the MySQL session is ended
+> COMMIT
+JOBLOG XDB CMTMY (mysql) SQLSTATE 40001, error *: COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTMY (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 1, SQL Server 0
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mysql] [CMTMY] [COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back]
+== CMTMY then CMTPG: CMTPG is only read and its session ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (4)
+> C
+> Q select count(*) from xdb_cmt_t
+  row: 1
+outside: the PostgreSQL session is ended
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 2, SQL Server 0
+== CMTMY then CMTPG: CMTMY is disconnected and connected again
+> C
+> X insert into xdb_cmt_t values (5)
+> C
+> X insert into xdb_cmt_t values (5)
+> COMMIT
+> D
+> C
+> X insert into xdb_cmt_t values (6)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 2, MySQL 4, SQL Server 0
+== CMTPG then CMTMS: nothing is lost
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> C
+> X insert into xdb_cmt_t values (1)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [asked before the commit: a lost connection rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 1
+== CMTPG then CMTMS: the session on CMTMS ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (2)
+> C
+> X insert into xdb_cmt_t values (2)
+outside: the SQL Server session is ended
+> COMMIT
+JOBLOG XDB CMTMS (mssql) SQLSTATE 40001, error *: COMMIT refused: the connection to the server is lost, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTMS votes against the commit
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 1
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [mssql] [CMTMS] [COMMIT refused: the connection to the server is lost, and what this unit of work changed there with it; the whole unit of work is rolled back]
+== CMTPG then CMTMS: the session on CMTPG ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (3)
+> C
+> X insert into xdb_cmt_t values (3)
+outside: the PostgreSQL session is ended
+> COMMIT
+JOBLOG XDB CMTPG (pg) SQLSTATE 40001, error *: COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back
+  CMTPG (last agent) has not committed
+  COMMIT FAILED: the unit of work is rolled back
+outside: rows committed: PostgreSQL 1, MySQL 0, SQL Server 1
+> Q select * from xdb_last_error
+  row: -911 [40001] 0 [pg] [CMTPG] [COMMIT failed: the connection to the server was lost before it, and what this unit of work changed there with it; the whole unit of work is rolled back]
+== CMTPG then CMTMS: CMTMS is only read and its session ends, COMMIT
+> C
+> X insert into xdb_cmt_t values (4)
+> C
+> Q select count(*) from xdb_cmt_t
+  row: 1
+outside: the SQL Server session is ended
+> COMMIT
+outside: rows committed: PostgreSQL 2, MySQL 0, SQL Server 1
+== CMTPG then CMTMS: CMTPG is disconnected and connected again
+> C
+> X insert into xdb_cmt_t values (5)
+> C
+> X insert into xdb_cmt_t values (5)
+> COMMIT
+> D
+> C
+> X insert into xdb_cmt_t values (6)
+> Q select * from xdb_connection_info
+  row: [session] [unit_of_work] [open, with changes]
+  row: [session] [commit_resource] [last agent: a commit that fails here rolls back the whole unit of work]
+  row: [counters] [reconnects] [0]
+  row: [counters] [units_of_work_lost] [0]
+  row: [counters] [commits] [0]
+  row: [counters] [commits_failed] [0]
+  row: [counters] [rollbacks] [0]
+> COMMIT
+outside: rows committed: PostgreSQL 4, MySQL 0, SQL Server 2

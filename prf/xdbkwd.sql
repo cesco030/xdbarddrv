@@ -1,0 +1,32 @@
+-- Keywords that can be set as options of an XDB connection profile.
+-- KWKIND C = keyword of the connection string, D = setting of the driver.
+-- Run with RUNSQLSTM ... DFTRDBCOL(<library>) COMMIT(*NONE).
+DELETE FROM XDBKWD;
+INSERT INTO XDBKWD (KWTYPE, KWKEY, KWKIND, KWTEXT, KWVALS) VALUES
+ ('*ALL',  'trim_char',        'D', 'Trim trailing blanks of CHAR parameters',       'on off'),
+ ('*ALL',  'user_case',        'D', 'Case of the user given on CONNECT USER',       'lower asis'),
+ ('*ALL',  'product',          'D', 'Product id reported to Db2, 8 characters',     ''),
+ ('*ALL',  'idle_check',       'D', 'Seconds idle before the connection is tested',  ''),
+ ('*ALL',  'ping_timeout',     'D', 'Seconds to wait for the answer to that test',   ''),
+ ('*ALL',  'joblog',           'D', 'Server errors written to the job log',          'long all off'),
+ ('*ALL',  'allowed_users',    'D', 'User or group profiles that may connect',       ''),
+ ('*ALL',  'passfile',         'C', 'Password file (host:port:db:user:password)',   ''),
+ ('PG',    'savepoints',       'D', 'Savepoint per statement in a transaction',     'on off'),
+ ('PG',    'long_values',      'D', 'Long values: cut at the text length or full',  'cut full'),
+ ('PG',    'lob_direct',       'D', 'KB of a file value sent in one piece (0-6144)', ''),
+ ('PG',    'sslmode',          'C', 'libpq sslmode, replaces Encryption',           'disable allow prefer require verify-ca verify-full'),
+ ('PG',    'sslrootcert',      'C', 'File with the CA certificates',                ''),
+ ('PG',    'application_name', 'C', 'Name shown in pg_stat_activity',               ''),
+ ('PG',    'options',          'C', 'Server options, for example -c search_path=x', ''),
+ ('PG',    'keepalives_idle',  'C', 'Seconds before TCP keepalive starts',          ''),
+ ('PG',    'target_session_attrs', 'C', 'Kind of server wanted',                    'any read-write read-only primary standby'),
+ ('MYSQL', 'init_sql',         'D', 'Statement run right after the connect',        ''),
+ ('MYSQL', 'tls',              'C', 'TLS mode, replaces Encryption',                'off prefer require verify'),
+ ('MSSQL', 'init_sql',         'D', 'Statement run right after the connect',        ''),
+ ('MSSQL', 'tds',              'C', 'Force the old protocol of SQL Server 2000',    '7.1'),
+ ('MSSQL', 'encrypt',          'C', 'Encryption mode, replaces Encryption',         'off prefer on strict'),
+ ('MSSQL', 'tls_verify',       'C', 'Check the server certificate',                 'on off'),
+ ('MSSQL', 'charset',          'C', 'CCSID of varchar data, when not detected',     ''),
+ ('MSSQL', 'string_params',    'C', 'Type used for character parameters',           'auto varchar nvarchar'),
+ ('MSSQL', 'datetime2',        'C', 'Send dates as date/time/datetime2',            'on off'),
+ ('MSSQL', 'appname',          'C', 'Application name shown on the server',         '');

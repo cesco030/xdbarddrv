@@ -1,0 +1,10 @@
+STRPGMEXP PGMLVL(*CURRENT) SIGNATURE('XDBARDV3')
+  EXPORT SYMBOL("xdb_ard_entry")
+  EXPORT SYMBOL("xdb_commit_exit")
+  EXPORT SYMBOL("xdb_fail_sqlca")
+  EXPORT SYMBOL("xdb_commit_wanted")
+  EXPORT SYMBOL("xdb_commit_registered")
+  EXPORT SYMBOL("xdb_commit_refused")
+  EXPORT SYMBOL("xdb_commit_handle")
+  EXPORT SYMBOL("xdb_commit_removed")
+ENDPGMEXP
