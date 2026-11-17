@@ -175,9 +175,9 @@ else
   touch -C 819 $D/README.md
   sed "s/SAVLIB($DOCLIB)/SAVLIB($B)/g" $K/doc/README.md >> $D/README.md
 fi
-n=$(grep -c "SAVLIB($B)" $D/README.md)
-if test "$n" = "2"; then echo "README beside the save files: SAVLIB($B) in 2 commands -> OK" >> $L
-else echo "README beside the save files: SAVLIB($B) in $n commands, 2 expected -> FAILED (build/savlib.txt names $DOCLIB)" >> $L; fi
+n=$(grep "SAVLIB($B)" $D/README.md | grep -c "RSTOBJ")
+if test "$n" = "2"; then echo "README beside the save files: SAVLIB($B) in its 2 restore commands -> OK" >> $L
+else echo "README beside the save files: SAVLIB($B) in $n restore commands, 2 expected -> FAILED (build/savlib.txt names $DOCLIB)" >> $L; fi
 for f in THIRD-PARTY-NOTICES.txt LICENSE; do rm -f $D/$f; if test -f $K/doc/$f; then cp $K/doc/$f $D/$f; fi; done
 if test ! -f $D/THIRD-PARTY-NOTICES.txt; then echo "NOT COPIED THIRD-PARTY-NOTICES.txt (run build/gen_notices.py)" >> $L; fi
 if test ! -f $D/LICENSE; then echo "NOT COPIED LICENSE (doc/LICENSE is missing)" >> $L; fi
