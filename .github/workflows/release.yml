@@ -1,0 +1,54 @@
+# Branch "packages": one folder for each version of XDBARDDRV, as built on PUB400.COM.
+# This workflow makes a GitHub Release for every folder that has none yet, so that the objects
+# save file can be downloaded from the Releases page of the repository:
+#   - the tag v<version> must exist and point to the commit named in <version>/COMMIT,
+#   - the save file must match <version>/SHA256SUMS,
+#   - the release gets one file, xdb-<version>-objects.savf.
+# It runs when the branch receives a push and changes nothing else.
+name: Release of a package
+on:
+  push:
+    branches: [packages]
+permissions:
+  contents: write
+concurrency:
+  group: release-of-a-package
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Releases for the package folders
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          git clone --quiet --depth 1 --branch packages "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git" pkg
+          cd pkg
+          for d in */; do
+            v=${d%/}
+            f="$v/xdb-$v-objects.savf"
+            if [ ! -f "$f" ] || [ ! -f "$v/SHA256SUMS" ] || [ ! -f "$v/COMMIT" ]; then continue; fi
+            if gh release view "v$v" > /dev/null 2>&1; then echo "v$v: has a release"; continue; fi
+            c=$(cat "$v/COMMIT")
+            t=$(git ls-remote origin "refs/tags/v$v^{}" | cut -f1)
+            if [ -z "$t" ]; then t=$(git ls-remote origin "refs/tags/v$v" | cut -f1); fi
+            if [ "$t" != "$c" ]; then echo "v$v: the tag points to '$t', the package was built from $c"; exit 1; fi
+            sum=$(sha256sum "$f" | cut -d' ' -f1)
+            if ! grep -q "^$sum  xdb-$v-objects.savf\$" "$v/SHA256SUMS"; then echo "v$v: the save file does not match SHA256SUMS"; exit 1; fi
+            {
+              echo "The objects of XDBARDDRV $v for IBM i 7.5, as a save file."
+              echo
+              echo "Built on PUB400.COM, a public IBM i system, from commit $c (tag v$v) by \`build/dist.sh\`. Nothing in it comes from another place."
+              echo
+              echo "**Install or update:** see the [README](https://github.com/$GH_REPO/blob/v$v/README.md#installing). The objects were saved from library CESCO2, so the restore command names \`SAVLIB(CESCO2)\`."
+              echo
+              echo "**SHA-256** of \`xdb-$v-objects.savf\`: \`$sum\`"
+              echo
+              echo "The sources as a save file, the log of the build and the help of the command as a page are in the folder [\`$v\`](https://github.com/$GH_REPO/tree/packages/$v) of branch \`packages\`."
+              echo
+              echo "Offered as it is, without warranty of any kind (MIT licence)."
+            } > ../notes.md
+            gh release create "v$v" "$f" --verify-tag --title "XDBARDDRV $v" --notes-file ../notes.md
+            echo "v$v: release made"
+          done
