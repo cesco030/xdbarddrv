@@ -67,11 +67,16 @@ overwrite them.
 The published packages are built on PUB400.COM, a public IBM i system, from
 the sources of this repository: a clone of the commit that carries the
 version tag, compiled there by `build/dist.sh` in library CESCO2 under the
-profile CESCO. Nothing in them comes from another place. They are in the
-branch `packages` of the repository, one folder for each version: the
-objects save file, the sources save file, this README, the help of the
-command as a page, the licence texts, the log of the build (`dist.log`) and
-`SHA256SUMS`.
+profile CESCO. Nothing in them comes from another place.
+
+- The objects save file of every version is on the
+  [Releases](https://github.com/cesco030/xdbarddrv/releases) page of the
+  repository; the newest is always at
+  [releases/latest](https://github.com/cesco030/xdbarddrv/releases/latest).
+- Everything a build produced is in the branch `packages`, one folder for
+  each version: the objects save file again, the sources save file, this
+  README, the help of the command as a page, the licence texts, the log of
+  the build (`dist.log`) and `SHA256SUMS`.
 
 Two things in this README follow from that: the restore commands name
 `SAVLIB(CESCO2)`, and after the first restore the setup has the line
@@ -79,8 +84,9 @@ Two things in this README follow from that: the restore commands name
 
 ## Installing
 
-Take `xdb-<version>-objects.savf` from the folder of the version in the
-branch `packages`, upload it to the IFS in binary, then:
+Download `xdb-<version>-objects.savf` from the
+[latest release](https://github.com/cesco030/xdbarddrv/releases/latest),
+upload it to the IFS in binary, then:
 
 ```
 CRTLIB LIB(XDB)
