@@ -125,6 +125,9 @@ typedef struct
 	int			first_meta;		/* next reply: keep the columns of the first result set */
 	mcol	   *cols1;
 	int			ncols1;
+	int			sets;			/* result sets with columns met in the reply being read */
+	mcol	   *cols0;			/* rows are kept: a copy of the columns of the first of them */
+	int			ncols0;
 	long long	count;
 	int			rv[MAXRV];
 	int			nrv;
@@ -164,7 +167,7 @@ typedef struct
 typedef struct
 {
 	int			handle;			/* server cursor, 0 = rows held in inl */
-	mcol	   *cols;
+	mcol	   *cols;			/* handle = 0: the columns of the rows as they came */
 	int			ncols;
 	xbe_batch	inl;
 	int			inl_used;
@@ -2044,6 +2047,11 @@ tok_colmetadata(msc *c)
  * Reads a whole reply.  Rows go to sink (NULL: they are dropped).  Returns
  * 0, or -1 with e filled in: either the first error the server reported or
  * a lost connection.
+ *
+ * A reply can carry several result sets (a procedure with more than one
+ * SELECT), each with columns of its own.  The sink is one table: it takes
+ * the rows of the first result set only, and c->cols0 is a copy of their
+ * columns; the rows of the others are read and dropped.
  */
 static int
 reply(msc *c, xbe_batch *sink, xbe_err *e)
@@ -2052,6 +2060,10 @@ reply(msc *c, xbe_batch *sink, xbe_err *e)
 	c->count = -1;
 	c->nrv = 0;
 	c->got_meta = 0;
+	c->sets = 0;
+	free(c->cols0);
+	c->cols0 = NULL;
+	c->ncols0 = 0;
 	if (!c->keep_meta)
 	{
 		/* columns of an earlier reply must not be taken for this one's */
@@ -2076,6 +2088,17 @@ reply(msc *c, xbe_batch *sink, xbe_err *e)
 		{
 			case 0x81:
 				rc = tok_colmetadata(c);
+				if (rc == 0 && c->ncols > 0 && ++c->sets == 1 && sink)
+				{
+					c->cols0 = malloc(sizeof(mcol) * (size_t) c->ncols);
+					if (c->cols0 == NULL)
+						rc = -1;
+					else
+					{
+						memcpy(c->cols0, c->cols, sizeof(mcol) * (size_t) c->ncols);
+						c->ncols0 = c->ncols;
+					}
+				}
 				break;
 			case 0xD1:			/* ROW */
 			case 0xD2:			/* NBCROW (TDS 7.3): a bitmap marks the NULL columns */
@@ -2091,7 +2114,7 @@ reply(msc *c, xbe_batch *sink, xbe_err *e)
 						break;
 					}
 
-					if (sink)
+					if (sink && c->sets <= 1)
 					{
 						char	  **nv = realloc(sink->val, sizeof(char *) *
 												 (size_t) (sink->nrows + 1) * (size_t) (c->ncols ? c->ncols : 1));
@@ -2996,6 +3019,7 @@ ms_disconnect(void *vc)
 	free(c->fbuf2);
 	free(c->cols);
 	free(c->cols1);
+	free(c->cols0);
 	free(c);
 }
 
@@ -3646,7 +3670,42 @@ direct:
 		check_txn(c, e);
 		return -1;
 	}
+	/* the columns the rows really have: ms_cursor_cols tells them */
+	k->cols = c->cols0;
+	k->ncols = c->ncols0;
+	c->cols0 = NULL;
+	c->ncols0 = 0;
 	*cur = k;
+	return 0;
+}
+
+/*
+ * The columns of the rows of an open cursor, as the server sent them with
+ * the cursor or with the rows.  The describe has its columns from
+ * sp_prepare or SET FMTONLY, which run nothing: a procedure they cannot
+ * follow (one that works with temporary tables, for one) is described with
+ * no columns, and a procedure with more than one way through it can return
+ * other columns than its first SELECT has.
+ */
+static int
+ms_cursor_cols(void *vc, void *cur, xbe_col **cols, int *ncols, xbe_err *e)
+{
+	mscur	   *k = cur;
+	int			i;
+
+	*cols = NULL;
+	*ncols = 0;
+	if (k == NULL || k->cols == NULL || k->ncols <= 0)
+		return 0;
+	*cols = calloc((size_t) k->ncols, sizeof(xbe_col));
+	if (*cols == NULL)
+	{
+		xnet_err(e, "57011", "not enough memory for the columns of the statement");
+		return -1;
+	}
+	for (i = 0; i < k->ncols; i++)
+		col_kind(&k->cols[i], &(*cols)[i]);
+	*ncols = k->ncols;
 	return 0;
 }
 
@@ -3947,5 +4006,6 @@ const xbe_driver xbe_mssql = {
 	"mssql", "@P%d", "MSS", 0,
 	ms_connect, ms_disconnect, ms_version,
 	ms_exec, ms_describe, ms_stmt_free,
-	ms_open, ms_fetch, ms_close, ms_txn, ms_ping, &ms_lob, ms_info
+	ms_open, ms_fetch, ms_close, ms_txn, ms_ping, &ms_lob, ms_info,
+	ms_cursor_cols
 };

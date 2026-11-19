@@ -79,3 +79,5 @@ build/xproc.sh
 test/xdbproc.sqlrpgle
 test/proctest_my.sh
 test/proctest_my.expected
+test/proctest_ms.sh
+test/proctest_ms.expected

@@ -302,7 +302,12 @@ What holds for a cursor on a call:
 - MySQL tells the columns of the rows only when the procedure has run. Db2
   gets them with the answer to the OPEN, so `FETCH ... INTO` works as with
   any cursor; before its first OPEN the statement has no columns to
-  describe.
+  describe. SQL Server describes a procedure from its text, without running
+  it; where that is not possible the columns come with the OPEN too.
+- A SQL Server procedure with more than one way through it can return a
+  first result set with another number of columns than it was described
+  with. The OPEN then gets SQLSTATE 07008 (SQLCODE -438), and the procedure
+  has run.
 - A procedure that returns no result set has nothing to fetch: the OPEN
   gets SQLCODE -517 (SQLSTATE 07005), and the procedure has run all the
   same. A procedure that fails gives its error to the OPEN.
@@ -541,7 +546,7 @@ RST DEV('/QSYS.LIB/QGPL.LIB/XDBSRC.FILE')
 | `ile/` | ILE port layer of libpq |
 | `prf/` | WRKXDBPRF: DDS generator, RPG program, setup module, command, help panel group, option dictionary |
 | `build/` | QSH build scripts: `build_ile.sh` and `bind_ile.sh` (libpq), `build_xdb.sh` (driver), `build_prf.sh` (profiles, command, help), `dist.sh` (this package), `trial_all.sh` and `trial_upd.sh` (try a package in the build library: a first install, and an update of an installed older version); `gen_notices.py` writes the notices file from the sources of `pg/` |
-| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures on MySQL (`proctest_my.sh`), and four sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is) and `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) |
+| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures on MySQL and SQL Server (`proctest_my.sh`, `proctest_ms.sh`), and four sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is) and `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) |
 | `doc/` | this file and `THIRD-PARTY-NOTICES.txt` |
 
 To build in a library of your own (ILE C and ILE RPG compilers needed), from

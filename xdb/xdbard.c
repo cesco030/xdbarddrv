@@ -4381,27 +4381,49 @@ do_open(xsess *s, const char *in, char *ca, char *out, int outsize, int *outlen)
 	else
 		rc = s->be->open(s->bc, t->bstmt, t->sql, np, pv, pk, s->autocommit, &t->bcur, &e);
 	free_parms(pv, np);
-	if (rc == 0 && s->be->cursor_cols && (t->ncols == 0 || t->late_cols))
+	if (rc == 0 && s->be->cursor_cols)
 	{
 		xbe_col    *cols = NULL;
 		int			nc = 0;
 
 		/*
-		 * The describe found no columns: the statement may be a CALL on a
-		 * server that tells the columns of a procedure's rows only when it
-		 * has run.  Then they are known now, and Db2 takes them from the
-		 * SQLDA that goes back with this open.
+		 * The statement ran at the open (the call of a procedure): the
+		 * backend may know the columns of the rows only now.  When the
+		 * describe told none, these are the columns, and Db2 takes them
+		 * from the SQLDA that goes back with this open.  When it told
+		 * some, they stand, but rows with another number of columns
+		 * cannot be handed out as what was described.
 		 */
 		rc = s->be->cursor_cols(s->bc, t->bcur, &cols, &nc, &e);
-		if (rc < 0)
-			s->be->close(s->bc, t->bcur);
-		else if (nc > 0)
+		if (rc == 0 && nc > 0)
 		{
-			describe_cols(s, t, cols, nc);
-			t->late_cols = 1;
-			tracef(s->trace, "  the server told the %d columns of the statement when it ran", t->ncols);
+			if (t->ncols == 0 || t->late_cols)
+			{
+				describe_cols(s, t, cols, nc);
+				t->late_cols = 1;
+				tracef(s->trace, "  the server told the %d columns of the statement when it ran", t->ncols);
+			}
+			else if (nc != t->ncols)
+			{
+				memset(&e, 0, sizeof e);
+				snprintf(e.sqlstate, sizeof e.sqlstate, "07008");
+				snprintf(e.msg, sizeof e.msg, "the statement was described with %d columns and returned rows of %d: "
+						 "its first result set is not always the same", t->ncols, nc);
+				rc = -1;
+			}
 		}
 		free(cols);
+		if (rc < 0)
+			s->be->close(s->bc, t->bcur);
+	}
+	if (rc == 0 && t->ncols == 0)
+	{
+		/* it ran and has no rows to give: a cursor of no columns is none */
+		s->be->close(s->bc, t->bcur);
+		memset(&e, 0, sizeof e);
+		snprintf(e.sqlstate, sizeof e.sqlstate, "07005");
+		snprintf(e.msg, sizeof e.msg, "the statement ran and returned no rows: there is nothing to fetch");
+		rc = -1;
 	}
 	if (rc < 0)
 	{

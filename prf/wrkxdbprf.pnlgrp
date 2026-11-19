@@ -1064,7 +1064,14 @@ MySQL tells the columns of the rows only when the procedure has
 run. Db2 gets them with the OPEN, so FETCH INTO works as with any
 cursor; before its first OPEN the statement has no columns to
 describe. EXPLAIN and some SHOW statements of MySQL are opened and
-fetched in the same way.
+fetched in the same way. SQL Server describes a procedure from its
+text, without running it; where that is not possible the columns
+come with the OPEN too.
+:LI.
+A SQL Server procedure with more than one way through it can return
+a first result set with another number of columns than it was
+described with. The OPEN then gets SQLSTATE 07008 (SQLCODE -438),
+and the procedure has run.
 :LI.
 On PostgreSQL procedures return no rows, and the server refuses a
 cursor on a CALL (SQLCODE -104). A function that returns a table is

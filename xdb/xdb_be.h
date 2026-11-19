@@ -224,11 +224,15 @@ typedef struct xbe_driver
 	void		(*info) (void *c, xbe_info_add add, void *ctx);
 
 	/*
-	 * The columns of the cursor just opened, for a statement whose
-	 * describe() found none because its server tells them only when the
-	 * statement runs: the rows a MySQL procedure returns.  Called after an
-	 * open() that worked.  *ncols = 0: nothing to tell, the columns of
-	 * describe() stand; else *cols is the caller's to free.  May be NULL.
+	 * The columns of the rows of the cursor just opened, when they are
+	 * known for sure only now that the statement has run: the rows of a
+	 * procedure, which describe() could not tell (MySQL; a SQL Server
+	 * procedure that cannot be described without running it) or told from
+	 * the text of the procedure alone.  Called after an open() that worked.
+	 * *ncols = 0: nothing to tell, the columns of describe() stand; else
+	 * *cols is the caller's to free.  The core takes them when describe()
+	 * told none and refuses the cursor when their number is another than
+	 * describe() told.  May be NULL.
 	 */
 	int			(*cursor_cols) (void *c, void *cur, xbe_col **cols, int *ncols, xbe_err *e);
 } xbe_driver;

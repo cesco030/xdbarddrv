@@ -378,9 +378,14 @@ dump_rows(void)
 				case 496:
 				case 492:
 					k = t == 500 ? 2 : t == 496 ? 4 : 8;
-					ll = (p[0] & 0x80) ? -1 : 0;
-					for (int q = 0; q < k; q++)
-						ll = (ll << 8) | p[q];
+					{
+						/* big-endian two's complement, put together without shifting a negative value */
+						unsigned long long u = (p[0] & 0x80) ? ~0ULL : 0;
+
+						for (int q = 0; q < k; q++)
+							u = (u << 8) | p[q];
+						ll = (long long) u;
+					}
 					printf(" %lld", ll);
 					p += k;
 					break;
