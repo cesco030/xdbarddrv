@@ -277,7 +277,7 @@ left with the server and read with a query:
 | Server | A value that comes back |
 |---|---|
 | MySQL, MariaDB | A variable of the session takes it: `CALL p(?, ?, @total)`, then `SELECT @total`. |
-| PostgreSQL | Written as a function it is a query: `SELECT * FROM f(?, ?)`. |
+| PostgreSQL | A cursor on the call has one row with the OUT and INOUT parameters: `CALL p(?, ?, NULL)`, OPEN, FETCH (see "Rows"; procedures exist since PostgreSQL 11). A function is a query: `SELECT f(?, ?)`. |
 | SQL Server | In one batch with the call it goes into a temporary table: `DECLARE @t int; EXEC p ?, ?, @t OUTPUT; INSERT INTO #out VALUES (@t)`, then `SELECT * FROM #out` (tried with Babelfish, not with a SQL Server). |
 
 **Rows.** The rows a procedure returns are fetched through a cursor on its
@@ -288,13 +288,14 @@ the values, FETCH:
 |---|---|
 | MySQL, MariaDB | A cursor on `CALL p(?)`. |
 | SQL Server | A cursor on `EXEC p ?`. |
-| PostgreSQL | Procedures return no rows there. A function that returns a table is a query: `SELECT * FROM f(?)`. A cursor on a CALL is refused by the server (SQLCODE -104). |
+| PostgreSQL | A function that returns a table is a query: `SELECT * FROM f(?)`. A procedure returns no result set there; it can open a cursor and hand back its name, and `FETCH ALL FROM name` reads it (see below). A cursor on `CALL p(?, NULL)` has the one row with its OUT and INOUT parameters. |
 
 What holds for a cursor on a call:
 
 - The procedure runs when the cursor is opened, once for each OPEN, with
   the values of that OPEN. The cursor has its first result set; further
-  result sets are read and dropped.
+  result sets are read and dropped. (On PostgreSQL: the row with its OUT
+  and INOUT parameters.)
 - All rows are read at the OPEN and kept in the memory of the job until
   they are fetched. For a result of very many rows let the procedure fill a
   temporary table and read that with an ordinary cursor, which takes the
@@ -310,7 +311,10 @@ What holds for a cursor on a call:
   has run.
 - A procedure that returns no result set has nothing to fetch: the OPEN
   gets SQLCODE -517 (SQLSTATE 07005), and the procedure has run all the
-  same. A procedure that fails gives its error to the OPEN.
+  same. PostgreSQL is the exception: the server says beforehand that a
+  statement returns no rows (a procedure without OUT parameters), and it is
+  not run for an OPEN that must fail. A procedure that fails gives its
+  error to the OPEN.
 - Executed and not opened (EXECUTE, EXECUTE IMMEDIATE, a call typed in
   STRSQL), a procedure that returns rows runs and its rows are dropped.
   STRSQL shows no rows for a CALL on any database: to look at them there,
@@ -327,10 +331,66 @@ On MySQL the server tells the columns late for some other statements too:
 `EXPLAIN`, `SHOW CREATE TABLE`, `SHOW ENGINES`, `SHOW PROCESSLIST` and the
 like. They are opened and fetched in the same way.
 
+**PostgreSQL: rows from a statement that is no query.** The driver opens a
+cursor there with DECLARE CURSOR, and the server takes only a query in it.
+Other statements return rows all the same: a `CALL`, `INSERT`, `UPDATE`,
+`DELETE` and `MERGE` with `RETURNING` (also inside a WITH clause), `FETCH`,
+`SHOW` and `EXPLAIN`. Opened as a cursor, such a statement runs at the
+OPEN, once, and its rows are kept in the memory of the job until they are
+fetched - what holds for a cursor on a call holds for all of them:
+
+    PREPARE S1 FROM 'insert into orders (customer, total) values (?, ?) returning id'
+    DECLARE C1 CURSOR FOR S1
+    OPEN C1 USING :CUST, :TOTAL          the row is inserted here
+    FETCH C1 INTO :NEWID
+
+The rows of a procedure come through a cursor of the server that the
+procedure opens (a parameter of type `refcursor`; a function can return
+one, which is the way before PostgreSQL 11). The program executes the call
+with a name for that cursor and then opens `FETCH ALL FROM` that name as a
+cursor of its own:
+
+    EXECUTE IMMEDIATE 'call monthly_rows(2026, 11, ''rows1'')'
+    PREPARE S2 FROM 'fetch all from rows1'
+    DECLARE C2 CURSOR FOR S2
+    OPEN C2
+    FETCH C2 INTO :A, :B
+
+Both steps belong to one unit of work: the cursor of the server ends with
+it, and without commitment control it is gone as soon as the call has
+ended. A FETCH that is prepared before its cursor exists has no columns to
+describe; they come with the OPEN.
+
 The sample `test/xdbproc.sqlrpgle` (script `build/xproc.sh`) creates three
 small procedures in a MySQL database you name, shows a value coming back,
 the rows through a cursor on the call and through a temporary table, and
 drops the procedures again.
+
+## Trying a statement
+
+STRSQL shows the rows of a query and little else. The tool `XDBRUN`
+(`test/xdbrun.sqlrpgle`, script `build/xrun.sh`) runs the statements of a
+stream file through the driver as a program would send them - PREPARE,
+DESCRIBE, OPEN, FETCH, EXECUTE - and writes down what came back: SQLCODE,
+SQLSTATE and the text of an error for every step, the columns as Db2 was
+told them, and the rows. It is the quick way to see what a statement of
+the server does before it goes into a program: the call of a procedure,
+`INSERT ... RETURNING`, a statement with parameter markers.
+
+    sh build/xrun.sh <kitdir> <lib> <rdb> /tmp/try.sql
+
+with a script of one statement a line, in the language of the server:
+
+    # X = execute, Q = a statement that returns rows, values after " ## "
+    Q select current_database(), version()
+    X create temporary table t (id serial, n int)
+    Q insert into t (n) values (?) returning id ## 42
+    Q select * from t where n > ? ## 10
+    C
+
+The result is `/tmp/xrun_<rdb>.out`. The program runs under commitment
+control and ends with a ROLLBACK; `C` commits, `R` rolls back. The head of
+the source lists the other lines a script can have.
 
 ## What the driver answers itself: the last error and the connection
 
@@ -546,7 +606,7 @@ RST DEV('/QSYS.LIB/QGPL.LIB/XDBSRC.FILE')
 | `ile/` | ILE port layer of libpq |
 | `prf/` | WRKXDBPRF: DDS generator, RPG program, setup module, command, help panel group, option dictionary |
 | `build/` | QSH build scripts: `build_ile.sh` and `bind_ile.sh` (libpq), `build_xdb.sh` (driver), `build_prf.sh` (profiles, command, help), `dist.sh` (this package), `trial_all.sh` and `trial_upd.sh` (try a package in the build library: a first install, and an update of an installed older version); `gen_notices.py` writes the notices file from the sources of `pg/` |
-| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures on MySQL and SQL Server (`proctest_my.sh`, `proctest_ms.sh`), and four sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is) and `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) |
+| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
 | `doc/` | this file and `THIRD-PARTY-NOTICES.txt` |
 
 To build in a library of your own (ILE C and ILE RPG compilers needed), from

@@ -449,7 +449,7 @@ own_message_data(int code, const char *state, const char *msg, char *out)
 		tok[nt++] = name;
 		tok[nt++] = "*N";
 	}
-	else if (PAIR(-404, "22001") || PAIR(-501, "24501"))
+	else if (PAIR(-404, "22001") || PAIR(-501, "24501") || PAIR(-518, "07003"))
 		tok[nt++] = name;
 	else if (PAIR(-551, "42501") || PAIR(-913, "57033"))
 	{
@@ -4831,7 +4831,24 @@ xdb_ard_entry(int *level, char *in, int *inlen, char *fmtname,
 		{
 			t = stmt_by(s, g32(in, 72), pkg, name, NULL);
 			if (t == NULL)
-				sqlca_set(ca, -518, "07003", "statement not prepared", 0);
+			{
+				/*
+				 * A DESCRIBE of a statement whose PREPARE failed: SQL0518.
+				 * Db2 looks into the output of this format also when nothing
+				 * is returned.  What it finds must not be what was left there
+				 * (seen: MCH1210 in the job log, SQL30020, and the connection
+				 * is ended), and an SQLDA that is returned with the error is
+				 * refused too (CPD3E06, SQL0969).  So: nothing returned, and
+				 * the place cleared.
+				 */
+				char		m[80];
+
+				if (outsize >= 16)
+					memset(out, 0, 16);
+				*outlen = 0;
+				snprintf(m, sizeof m, "statement \"%s\" is not prepared", name[0] ? name : "*N");
+				sqlca_set(ca, -518, "07003", m, 0);
+			}
 			else
 			{
 				*outlen = build_sqlda(s, t, out, outsize, 1);

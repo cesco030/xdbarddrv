@@ -70,6 +70,8 @@ typedef struct
 {
 	char	   *wsql;			/* the statement wrapped to cut long values, or NULL */
 	int			has_long;		/* result has columns of unbounded length */
+	int			runs;			/* no query: it returns its rows when it is run (run_at_open) */
+	int			ncols;			/* columns the server described */
 } pgstmt;
 
 typedef struct pgcur
@@ -80,6 +82,8 @@ typedef struct pgcur
 	int			epoch;			/* savepoint epoch it was declared in, -1 outside a transaction */
 	int			dead;			/* gone on the server (rollback to a savepoint) */
 	int			small;			/* long values come whole: fetch few rows at a time */
+	PGresult   *res;			/* no server cursor: the rows of a statement that ran at the open */
+	int			pos;			/* the next of them to hand out */
 } pgcur;
 
 static void
@@ -305,7 +309,14 @@ pg_version(void *vc)
 {
 	int			v = PQserverVersion(((pgc *) vc)->pg);
 
-	return (v / 10000) * 100 + (v % 10000) % 100;
+	/*
+	 * 160015 is 16.15: since version 10 the number is the major version and
+	 * the minor release.  90602 is 9.6.2: before, two numbers made the
+	 * major version, and they are what is told here (9.6).
+	 */
+	if (v >= 100000)
+		return (v / 10000) * 100 + (v % 10000) % 100;
+	return (v / 10000) * 100 + (v / 100) % 100;
 }
 
 static int
@@ -490,6 +501,145 @@ wrap_long(pgc *c, const char *sql, PGresult *d, int *has_long, const int *sink, 
 	return w;
 }
 
+/* does the statement hold the word (letters in upper case), outside of names it is part of? */
+static int
+has_word(const char *sql, const char *word)
+{
+	size_t		i,
+				l = strlen(word);
+	const char *p;
+
+	for (p = sql; *p; p++)
+	{
+		int			before = p > sql ? (unsigned char) p[-1] : ' ';
+
+		if ((before >= 'A' && before <= 'Z') || (before >= 'a' && before <= 'z') ||
+			(before >= '0' && before <= '9') || before == '_' || before == '"')
+			continue;
+		for (i = 0; i < l; i++)
+			if ((p[i] & ~0x20) != word[i])
+				break;
+		if (i == l && !((p[l] >= 'A' && p[l] <= 'Z') || (p[l] >= 'a' && p[l] <= 'z') ||
+						(p[l] >= '0' && p[l] <= '9') || p[l] == '_' || p[l] == '"'))
+			return 1;
+	}
+	return 0;
+}
+
+/*
+ * Is the statement one that returns its rows when it is run and that the
+ * server does not take in DECLARE CURSOR?  These are the statements that
+ * are no query and can return rows all the same: the call of a procedure
+ * (a row with its OUT and INOUT parameters), INSERT, UPDATE, DELETE and
+ * MERGE with RETURNING, FETCH from a cursor that a procedure opened, the
+ * EXECUTE of a statement prepared on the server, SHOW and EXPLAIN.
+ *
+ * A statement that begins with WITH is a query, unless its WITH clause
+ * changes data ("WITH x AS (INSERT ... RETURNING ...) SELECT ..."), which
+ * DECLARE CURSOR does not take either.  The server tells: when the
+ * statement names such a word, the DECLARE is prepared - not run.  Inside
+ * a transaction its refusal must not cost the transaction.
+ */
+static int
+runs_when_opened(pgc *c, const char *sql)
+{
+	static const char *const kw[] = {"CALL", "INSERT", "UPDATE", "DELETE", "MERGE", "FETCH",
+		"EXECUTE", "SHOW", "EXPLAIN", NULL};
+	int			i,
+				intx,
+				refused;
+	char	   *q;
+	PGresult   *v;
+
+	for (i = 0; kw[i]; i++)
+		if (starts_with(sql, kw[i]))
+			return 1;
+	if (!starts_with(sql, "WITH") ||
+		!(has_word(sql, "INSERT") || has_word(sql, "UPDATE") || has_word(sql, "DELETE") || has_word(sql, "MERGE")))
+		return 0;
+	q = malloc(strlen(sql) + 48);
+	if (q == NULL)
+		return 0;
+	sprintf(q, "DECLARE xdb_probe CURSOR FOR %s", sql);
+	intx = PQtransactionStatus(c->pg) == PQTRANS_INTRANS;
+	if (intx)
+		run(c, "SAVEPOINT xdb_w", NULL);
+	v = PQprepare(c->pg, "", q, 0, NULL);
+	free(q);
+	refused = PQresultStatus(v) != PGRES_COMMAND_OK && PQstatus(c->pg) == CONNECTION_OK &&
+		PQresultErrorField(v, PG_DIAG_SQLSTATE) != NULL &&
+		strcmp(PQresultErrorField(v, PG_DIAG_SQLSTATE), "0A000") == 0;
+	if (intx && PQresultStatus(v) != PGRES_COMMAND_OK)
+		run(c, "ROLLBACK TO SAVEPOINT xdb_w", NULL);
+	PQclear(v);
+	if (intx)
+		run(c, "RELEASE SAVEPOINT xdb_w", NULL);
+	return refused;
+}
+
+/* column i of a result or of a description, as the core wants it */
+static void
+col_of(const PGresult *r, int i, xbe_col *x)
+{
+	int			mod = PQfmod(r, i);
+
+	snprintf(x->name, sizeof x->name, "%s", PQfname(r, i));
+	switch ((unsigned) PQftype(r, i))
+	{
+		case 21:
+			x->kind = XK_SMALLINT;
+			break;
+		case 16:
+			x->kind = XK_BOOL;
+			break;
+		case 23:
+		case 26:
+			x->kind = XK_INTEGER;
+			break;
+		case 20:
+			x->kind = XK_BIGINT;
+			break;
+		case 700:
+		case 701:
+			x->kind = XK_DOUBLE;
+			break;
+		case 1700:
+			x->kind = XK_DECIMAL;
+			if (mod >= 4)
+			{
+				x->prec = ((mod - 4) >> 16) & 0xFFFF;
+				x->scale = (mod - 4) & 0xFFFF;
+			}
+			break;
+		case 1082:
+			x->kind = XK_DATE;
+			break;
+		case 1083:
+			x->kind = XK_TIME;
+			break;
+		case 1114:
+		case 1184:
+			x->kind = XK_TIMESTAMP;
+			break;
+		case 1042:
+			x->kind = XK_CHAR;
+			x->len = mod >= 4 ? mod - 4 : 0;
+			break;
+		case 19:
+			x->kind = XK_VARCHAR;
+			x->len = 63;
+			break;
+		case 2950:			/* uuid */
+			x->kind = XK_CHAR;
+			x->len = 36;
+			break;
+		default:
+			x->kind = XK_VARCHAR;
+			x->len = ((unsigned) PQftype(r, i) == 1043 && mod >= 4) ? mod - 4 : 0;
+			break;
+	}
+}
+
 static int
 pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, xbe_err *e)
 {
@@ -530,66 +680,7 @@ pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 	if (n > 0)
 		*cols = calloc(n, sizeof(xbe_col));
 	for (i = 0; i < n && *cols; i++)
-	{
-		xbe_col    *x = &(*cols)[i];
-		int			mod = PQfmod(r, i);
-
-		snprintf(x->name, sizeof x->name, "%s", PQfname(r, i));
-		switch ((unsigned) PQftype(r, i))
-		{
-			case 21:
-				x->kind = XK_SMALLINT;
-				break;
-			case 16:
-				x->kind = XK_BOOL;
-				break;
-			case 23:
-			case 26:
-				x->kind = XK_INTEGER;
-				break;
-			case 20:
-				x->kind = XK_BIGINT;
-				break;
-			case 700:
-			case 701:
-				x->kind = XK_DOUBLE;
-				break;
-			case 1700:
-				x->kind = XK_DECIMAL;
-				if (mod >= 4)
-				{
-					x->prec = ((mod - 4) >> 16) & 0xFFFF;
-					x->scale = (mod - 4) & 0xFFFF;
-				}
-				break;
-			case 1082:
-				x->kind = XK_DATE;
-				break;
-			case 1083:
-				x->kind = XK_TIME;
-				break;
-			case 1114:
-			case 1184:
-				x->kind = XK_TIMESTAMP;
-				break;
-			case 1042:
-				x->kind = XK_CHAR;
-				x->len = mod >= 4 ? mod - 4 : 0;
-				break;
-			case 19:
-				x->kind = XK_VARCHAR;
-				x->len = 63;
-				break;
-			case 2950:			/* uuid */
-				x->kind = XK_CHAR;
-				x->len = 36;
-				break;
-			default:
-				x->kind = XK_VARCHAR;
-				x->len = ((unsigned) PQftype(r, i) == 1043 && mod >= 4) ? mod - 4 : 0;
-				break;
-		}
-	}
+		col_of(r, i, &(*cols)[i]);
 	*ncols = n;
 	st = calloc(1, sizeof(pgstmt));
 	if (st && n > 0)
@@ -620,8 +711,13 @@ pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 				run(c, "RELEASE SAVEPOINT xdb_w", NULL);
 		}
 	}
-	*stmt = st;
 	PQclear(r);
+	if (st)
+	{
+		st->runs = runs_when_opened(c, sql);
+		st->ncols = n;
+	}
+	*stmt = st;
 	return 0;
 }
 
@@ -637,6 +733,75 @@ pg_stmt_free(void *vc, void *stmt)
 	}
 }
 
+/*
+ * The cursor of a statement that is no query (see runs_when_opened): the
+ * statement runs now, once, and its rows wait here until they are fetched.
+ * Nothing of it is left on the server, so neither the end of a transaction
+ * nor a new connection takes the rows away.  A statement that returned no
+ * rows leaves a cursor of no columns, which the core refuses.
+ */
+static int
+run_at_open(pgc *c, const char *sql, int np, char **pv, void **cur, xbe_err *e)
+{
+	pgcur	   *k = calloc(1, sizeof(pgcur));
+	PGresult   *r;
+
+	if (k == NULL)
+		return -1;
+	r = PQexecParams(c->pg, sql, np, NULL, (const char *const *) pv, NULL, NULL, 0);
+	if (is_copy(r))
+	{
+		end_copy(c, r);
+		PQclear(r);
+		free(k);
+		memset(e, 0, sizeof *e);
+		snprintf(e->sqlstate, sizeof e->sqlstate, "0A000");
+		snprintf(e->msg, sizeof e->msg, "COPY to or from the client is not supported here");
+		return -1;
+	}
+	if (PQresultStatus(r) != PGRES_COMMAND_OK && PQresultStatus(r) != PGRES_TUPLES_OK)
+	{
+		set_err(c, r, e);
+		PQclear(r);
+		free(k);
+		recover(c, e);
+		return -1;
+	}
+	k->res = r;
+	k->gen = c->gen;
+	k->epoch = -1;
+	k->next = c->curs;
+	c->curs = k;
+	*cur = k;
+	return 0;
+}
+
+/* the columns of the rows of a statement that ran at the open, as they came */
+static int
+pg_cursor_cols(void *vc, void *cur, xbe_col **cols, int *ncols, xbe_err *e)
+{
+	pgcur	   *k = cur;
+	int			i,
+				n;
+
+	*cols = NULL;
+	*ncols = 0;
+	if (k == NULL || k->res == NULL || (n = PQnfields(k->res)) <= 0)
+		return 0;
+	*cols = calloc((size_t) n, sizeof(xbe_col));
+	if (*cols == NULL)
+	{
+		memset(e, 0, sizeof *e);
+		snprintf(e->sqlstate, sizeof e->sqlstate, "57011");
+		snprintf(e->msg, sizeof e->msg, "not enough memory for the columns of the statement");
+		return -1;
+	}
+	for (i = 0; i < n; i++)
+		col_of(k->res, i, &(*cols)[i]);
+	*ncols = n;
+	return 0;
+}
+
 static int
 pg_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		int hold, void **cur, xbe_err *e)
@@ -649,6 +814,24 @@ pg_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 
 	if (alive(c, e) < 0)
 		return -1;
+	if (st ? st->runs : runs_when_opened(c, sql))
+	{
+		/*
+		 * The server has said whether the statement returns rows.  One that
+		 * returns none (a procedure without OUT parameters, an INSERT
+		 * without RETURNING) is not run for an OPEN that must fail.  FETCH
+		 * is the exception: prepared before its cursor exists it is
+		 * described with no columns and returns rows all the same.
+		 */
+		if (st && st->ncols == 0 && !starts_with(sql, "FETCH"))
+		{
+			memset(e, 0, sizeof *e);
+			snprintf(e->sqlstate, sizeof e->sqlstate, "07005");
+			snprintf(e->msg, sizeof e->msg, "the statement returns no rows: there is nothing to fetch, and it was not run");
+			return -1;
+		}
+		return run_at_open(c, sql, np, pv, cur, e);
+	}
 	if (st && st->wsql)
 		sql = st->wsql;
 	k = calloc(1, sizeof(pgcur));
@@ -701,6 +884,31 @@ pg_fetch(void *vc, void *cur, int maxrows, xbe_batch *b, xbe_err *e)
 				j;
 
 	memset(b, 0, sizeof *b);
+	if (k->res)
+	{
+		/* the rows are here already: the batch points into them and owns nothing but its table */
+		int			left = PQntuples(k->res) - k->pos;
+
+		b->nrows = left < maxrows ? left : maxrows;
+		b->ncols = PQnfields(k->res);
+		b->eof = b->nrows == left;
+		b->release = pg_release;
+		if (b->nrows > 0 && b->ncols > 0)
+		{
+			b->val = malloc(sizeof(char *) * (size_t) b->nrows * (size_t) b->ncols);
+			if (b->val == NULL)
+			{
+				memset(b, 0, sizeof *b);
+				return -1;
+			}
+			for (i = 0; i < b->nrows; i++)
+				for (j = 0; j < b->ncols; j++)
+					b->val[i * b->ncols + j] = PQgetisnull(k->res, k->pos + i, j) ? NULL :
+						PQgetvalue(k->res, k->pos + i, j);
+		}
+		k->pos += b->nrows;
+		return 0;
+	}
 	if (k->gen != c->gen || k->dead)
 	{
 		memset(e, 0, sizeof *e);
@@ -755,8 +963,10 @@ pg_close(void *vc, void *cur)
 			*pp = k->next;
 			break;
 		}
-	if (k->gen == c->gen && !k->dead && PQstatus(c->pg) == CONNECTION_OK &&
-		PQtransactionStatus(c->pg) != PQTRANS_INERROR)
+	if (k->res)
+		PQclear(k->res);		/* it ran at the open: nothing of it is on the server */
+	else if (k->gen == c->gen && !k->dead && PQstatus(c->pg) == CONNECTION_OK &&
+			 PQtransactionStatus(c->pg) != PQTRANS_INERROR)
 	{
 		snprintf(q, sizeof q, "CLOSE %s", k->name);
 		run(c, q, NULL);
@@ -1348,5 +1558,6 @@ const xbe_driver xbe_pg = {
 	pg_connect, pg_disconnect, pg_version,
 	pg_exec, pg_describe, pg_stmt_free,
 	pg_open, pg_fetch, pg_close, pg_txn, pg_ping,
-	&pg_lob, pg_info
+	&pg_lob, pg_info,
+	pg_cursor_cols
 };

@@ -1048,9 +1048,9 @@ Values go in as parameter markers. An EXECUTE hands nothing back,
 no output parameter and no return code&colon. a value that comes
 back is left with the server and read with a query. On MySQL a
 variable of the session takes it&colon. CALL P(?, ?, @TOTAL) and
-then SELECT @TOTAL. On PostgreSQL write a function and select from
-it. On SQL Server put the value into a temporary table in the same
-batch as the EXEC.
+then SELECT @TOTAL. On PostgreSQL a cursor on CALL P(?, ?, NULL)
+has one row with the OUT and INOUT parameters. On SQL Server put
+the value into a temporary table in the same batch as the EXEC.
 :LI.
 The procedure runs when the cursor is opened, once for each OPEN,
 with the values of that OPEN. The cursor has its first result set;
@@ -1073,14 +1073,22 @@ a first result set with another number of columns than it was
 described with. The OPEN then gets SQLSTATE 07008 (SQLCODE -438),
 and the procedure has run.
 :LI.
-On PostgreSQL procedures return no rows, and the server refuses a
-cursor on a CALL (SQLCODE -104). A function that returns a table is
-a query&colon. SELECT * FROM F(?).
+On PostgreSQL a function that returns a table is a query&colon.
+SELECT * FROM F(?). A procedure returns no result set there. It can
+open a cursor of the server and hand back its name&colon. execute
+CALL P(?, 'ROWS1') and then open FETCH ALL FROM ROWS1 as a cursor,
+both in one unit of work.
+:LI.
+On PostgreSQL other statements that are no query return rows too,
+and are opened and fetched like a call&colon. INSERT, UPDATE and
+DELETE with RETURNING, SHOW and EXPLAIN. The statement runs at the
+OPEN.
 :LI.
 A procedure that returns no result set has nothing to fetch&colon.
 the OPEN gets SQLCODE -517 (SQLSTATE 07005), and the procedure has
-run all the same. A procedure that fails gives its error to the
-OPEN.
+run all the same. Not so on PostgreSQL&colon. the server says
+beforehand that a statement returns no rows, and it is not run. A
+procedure that fails gives its error to the OPEN.
 :LI.
 A call that is executed and not opened runs the procedure, and the
 rows it returns are dropped. STRSQL shows no rows for a CALL&colon.

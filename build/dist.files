@@ -81,3 +81,7 @@ test/proctest_my.sh
 test/proctest_my.expected
 test/proctest_ms.sh
 test/proctest_ms.expected
+test/proctest_pg.sh
+test/proctest_pg.expected
+build/xrun.sh
+test/xdbrun.sqlrpgle
