@@ -112,6 +112,9 @@ typedef struct
 	int			is_open;
 	xbe_batch	buf;			/* read-ahead rows */
 	int			bufrow;
+	long		row_max;		/* bytes of the largest row the open cursor has delivered */
+	int			row_seen;		/* ... and whether it has delivered one */
+	int			row_asked;		/* rows asked from the server the last time (for the trace) */
 	int			eof;
 	int			block;
 	int			nfetch;			/* fetch calls since open (trace) */
@@ -4538,6 +4541,9 @@ opened:
 	t->eof = 0;
 	t->bufrow = 0;
 	t->nfetch = 0;
+	t->row_max = 0;
+	t->row_seen = 0;
+	t->row_asked = 0;
 	t->has_fetch_err = 0;
 	t->block = (in[130] != '\0' && ((unsigned char) in[130] & 0x0F) == 1);
 	register_commit(s);
@@ -4559,19 +4565,36 @@ opened:
 			   s->in_len, g32(in, 132), g32(in, 136));
 }
 
+/* memory one batch of rows is meant to take, and what it may take at the most */
+#define BATCH_BYTES 4000000L
+#define BATCH_BYTES_MAX 64000000L
+/* what a value costs beside its bytes: its pointer and its allocation */
+#define VALUE_COST 48
+
 /*
  * Rows asked from the backend at a time: what option fetch_rows says (200
- * without it), fewer when the rows can be long, so that one batch stays
- * within a few megabytes whatever the option says.  More rows at a time are
- * fewer exchanges with the server, which counts when the server is far away
- * and the rows are short; the blocks handed to Db2 are not touched by it.
+ * without it), fewer when the rows are long, so that one batch stays within
+ * a few megabytes whatever the option says.  More rows at a time are fewer
+ * exchanges with the server, which counts when the server is far away; the
+ * blocks handed to Db2 are not touched by it.
+ *
+ * Before the cursor has delivered a row nothing is known but what the rows
+ * can be at the most (the lengths the columns are described with): the first
+ * batch is sized by that.  From then on the largest row the cursor has
+ * really delivered decides - a query that describes its columns far wider
+ * than its values are (CAST(... AS CHAR(12000)) around a short text) would
+ * otherwise crawl in batches of a few dozen rows - and what the rows can be
+ * at the most still sets a ceiling, at a higher mark, because the rows to
+ * come may be longer than those seen.  Where a server sends values longer
+ * than described (MySQL sends a long text whole and the driver cuts it), the
+ * rows seen make the batches smaller than the description would.
  */
 static int
 fetch_rows(const xsess *s, const xstmt *t)
 {
-	long		est = 16;
-	int			i,
+	long		est = 16,
 				n;
+	int			i;
 
 	/* a row that writes files may carry megabytes: one at a time */
 	if (t->lob && t->lob->nout > 0)
@@ -4579,8 +4602,41 @@ fetch_rows(const xsess *s, const xstmt *t)
 	for (i = 0; i < t->ncols; i++)
 		est += (t->cols[i].sqltype == T_CHAR || t->cols[i].sqltype == T_VARCHAR) ?
 			(long) t->cols[i].len * 2 + 8 : 24;
-	n = (int) (4000000L / est);
-	return n < 1 ? 1 : n > s->fetch_rows ? s->fetch_rows : n;
+	if (!t->row_seen)
+		n = BATCH_BYTES / est;
+	else
+	{
+		n = BATCH_BYTES / (t->row_max > 64 ? t->row_max : 64);
+		if (n > BATCH_BYTES_MAX / est)
+			n = BATCH_BYTES_MAX / est;
+	}
+	return n < 1 ? 1 : n > s->fetch_rows ? s->fetch_rows : (int) n;
+}
+
+/* the rows of a batch that has just come from the server: how large is the largest? */
+static void
+rows_measure(xstmt *t)
+{
+	const xbe_batch *b = &t->buf;
+	int			r,
+				c;
+
+	if (b->val == NULL)
+		return;
+	for (r = 0; r < b->nrows; r++)
+	{
+		long		size = 0;
+
+		for (c = 0; c < b->ncols; c++)
+		{
+			const char *v = b->val[r * b->ncols + c];
+
+			size += VALUE_COST + (v ? (long) strlen(v) : 0);
+		}
+		if (size > t->row_max)
+			t->row_max = size;
+		t->row_seen = 1;
+	}
 }
 
 static void
@@ -4656,7 +4712,22 @@ do_fetch(xsess *s, const char *in, char *ca, char *out, int outsize, int *outlen
 				if (t->lob && t->lob->nout > 0)
 					frc = lob_fetch(s, t, &e);
 				else
-					frc = s->be->fetch(s->bc, t->bcur, fetch_rows(s, t), &t->buf, &e);
+				{
+					int			want = fetch_rows(s, t);
+
+					if (want != t->row_asked)
+					{
+						if (t->row_seen)
+							tracef(s->trace, "  %d rows asked from the server at a time now: the largest row so far has %ld bytes",
+								   want, t->row_max);
+						else
+							tracef(s->trace, "  %d rows asked from the server at a time", want);
+						t->row_asked = want;
+					}
+					frc = s->be->fetch(s->bc, t->bcur, want, &t->buf, &e);
+					if (frc == 0)
+						rows_measure(t);
+				}
 			}
 			if (frc < 0)
 			{

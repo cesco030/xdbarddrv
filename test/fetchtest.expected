@@ -41,7 +41,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [13]
   row: [options] [fetch_rows] [200]
   row: [limits] [rows_per_exchange] [200]
-  total rows=65
+  total rows=66
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -65,7 +65,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [13]
   row: [options] [fetch_rows] [200]
   row: [limits] [rows_per_exchange] [200]
-  total rows=67
+  total rows=68
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -112,7 +112,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [3]
   row: [options] [fetch_rows] [1000]
   row: [limits] [rows_per_exchange] [1000]
-  total rows=65
+  total rows=66
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -136,7 +136,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [3]
   row: [options] [fetch_rows] [1000]
   row: [limits] [rows_per_exchange] [1000]
-  total rows=67
+  total rows=68
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -183,7 +183,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [1]
   row: [options] [fetch_rows] [5000]
   row: [limits] [rows_per_exchange] [5000]
-  total rows=65
+  total rows=66
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -207,7 +207,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [1]
   row: [options] [fetch_rows] [5000]
   row: [limits] [rows_per_exchange] [5000]
-  total rows=67
+  total rows=68
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -254,7 +254,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [1]
   row: [options] [fetch_rows] [5000]
   row: [limits] [rows_per_exchange] [5000]
-  total rows=65
+  total rows=66
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -278,7 +278,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [fetches_from_server] [1]
   row: [options] [fetch_rows] [5000]
   row: [limits] [rows_per_exchange] [5000]
-  total rows=67
+  total rows=68
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -315,10 +315,78 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   total rows=600
 > Q select * from xdb_connection_info
   row: [counters] [rows_fetched] [600]
-  row: [counters] [fetches_from_server] [4]
+  row: [counters] [fetches_from_server] [2]
   row: [options] [fetch_rows] [5000]
   row: [limits] [rows_per_exchange] [5000]
   total rows=77
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL, 2000 rows described far wider than they are, no option
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X set session cte_max_recursion_depth = 5000
+> Q with recursive s (n) as (select 1 union all select n + 1 from s where n < 2000) select n, n * 2 as
+  row: 1 2 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 199 398 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 200 400 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 201 402 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 600 1200 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 1000 2000 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 1001 2002 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  total rows=2000
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2000]
+  row: [counters] [fetches_from_server] [11]
+  row: [options] [fetch_rows] [200]
+  row: [limits] [rows_per_exchange] [200]
+  total rows=66
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL, the same rows, option fetch_rows: 5000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X set session cte_max_recursion_depth = 5000
+> Q with recursive s (n) as (select 1 union all select n + 1 from s where n < 2000) select n, n * 2 as
+  row: 1 2 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 199 398 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 200 400 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 201 402 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 600 1200 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 1000 2000 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  row: 1001 2002 [name] [it] [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  total rows=2000
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2000]
+  row: [counters] [fetches_from_server] [3]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=66
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL, 300 rows with a text of 100,000 characters each, which arrives whole (shown as [])
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create temporary table xdb_ft_long (n int primary key, t longtext)
+> X set session cte_max_recursion_depth = 5000
+> X insert into xdb_ft_long with recursive s (n) as (select 1 union all select n + 1 from s where n < 
+> Q select n, char_length(t) as chars, t from xdb_ft_long order by n
+  row: 1 100000 []
+  row: 199 100000 []
+  row: 200 100000 []
+  row: 201 100000 []
+  total rows=300
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [300]
+  row: [counters] [fetches_from_server] [4]
+  row: [options] [fetch_rows] [200]
+  row: [limits] [rows_per_exchange] [200]
+  total rows=66
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 

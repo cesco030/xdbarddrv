@@ -573,14 +573,19 @@ is 5.
 Rows of a query the driver asks from the server at a time, 1 to
 5000. Without the option it is 200. Each such group is one exchange
 with the server, so a higher number helps where the server is far
-away and the rows are short&colon. reading many rows then waits less
-often for the line. It changes nothing for a program&colon. the rows
-reach Db2 in blocks of the same size as before, and FETCH works as
-before. The driver asks for fewer rows by itself when the rows can
-be long, so that one group stays within about 4 MB; that limit
-holds whatever the option says. On MySQL long values arrive whole,
-so with rows that carry long text or binary values a high number
-needs more memory.
+away&colon. reading many rows then waits less often for the line.
+It changes nothing for a program&colon. the rows reach Db2 in
+blocks of the same size as before, and FETCH works as before.
+:P.
+The driver asks for fewer rows by itself when the rows are long,
+so that one group stays within about 4 MB of memory, whatever the
+option says. The first group of a cursor is sized by what its rows
+can be at the most (the lengths the columns are described with),
+the following ones by the largest row the cursor has delivered. So
+a query that describes its columns far wider than its values are
+is not held back, and rows that are longer than described (MySQL
+sends long values whole) make the groups smaller. What the rows
+can be at the most still sets a ceiling of 64 MB for one group.
 :PT.joblog
 :PD.
 Which errors of the database server are written to the job log as
@@ -666,6 +671,16 @@ to set the time zone or the SQL mode of the session.
 :PD.
 The exact TLS mode&colon. off, prefer, require or verify. It
 replaces the Encryption field.
+:PT.socket_buffer
+:PD.
+The size of the send and of the receive buffer of the connection,
+in KB, up to 8192. Without the option the driver asks for 1024.
+The buffer limits how much the server may send before the driver
+has taken it; with the 64 KB a system usually gives a connection,
+a server that answers in 40 milliseconds sends about 1.5 MB a
+second at the most, however fast the line is. 0 leaves the size
+the system gives. The connection information shows the size in
+force (link, socket_buffer).
 :EPARML.
 :EHELP.
 :HELP NAME='XDB/OPT/MSSQL'.
@@ -698,6 +713,16 @@ on sends dates and times as date, time and datetime2. off sends
 them as datetime, for servers older than SQL Server 2008.
 :PT.appname
 :PD.The application name shown on the server.
+:PT.socket_buffer
+:PD.
+The size of the send and of the receive buffer of the connection,
+in KB, up to 8192. Without the option the driver asks for 1024.
+The buffer limits how much the server may send before the driver
+has taken it; with the 64 KB a system usually gives a connection,
+a server that answers in 40 milliseconds sends about 1.5 MB a
+second at the most, however fast the line is. 0 leaves the size
+the system gives. The connection information shows the size in
+force (link, socket_buffer).
 :EPARML.
 :EHELP.
 .* ------------------------------------------------------------- windows

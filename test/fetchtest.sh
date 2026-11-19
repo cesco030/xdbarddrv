@@ -8,9 +8,19 @@
 # The same 2500 short rows are read with a profile that has no such option (200 at a time),
 # with 1000, with 5000, and with a number above the limit, which counts as 5000.  What is
 # looked at is the counter fetches_from_server of XDB CONNECTION INFO: 13, 3, 1 and 1
-# exchanges, and 2500 rows each time, the last one always the same.  Rows that can be long
-# are asked for in smaller groups whatever the option says (one group stays within about
-# 4 MB): 600 rows of ten text columns take 4 exchanges with and without the option.
+# exchanges, and 2500 rows each time, the last one always the same.
+# Rows that are long are asked for in smaller groups whatever the option says, so that one
+# group stays within about 4 MB.  The first group of a cursor is sized by what its rows can
+# be at the most (the lengths the columns are described with), the next ones by the largest
+# row the cursor has delivered, with what the rows can be at the most as a ceiling at 64 MB:
+#   - 600 rows of ten text columns with short values: 198 rows first, then what the option
+#     allows: 4 exchanges without the option, 2 with 5000;
+#   - 2000 rows of a query that describes two columns as CHAR(12000) around short texts
+#     (80 rows first): 11 exchanges without the option, 3 with 5000 - 26 if only the
+#     description counted;
+#   - 300 rows that each carry a text of 100,000 characters, which MySQL sends whole: after
+#     the first group the driver asks for 39 rows at a time, 4 exchanges in all.  (The
+#     harness shows a value above 255 bytes as [], here and everywhere.)
 E=$1
 D=/tmp/xdb_fetch
 P=$D/profile.emu
@@ -59,3 +69,15 @@ done
 WIDE="select g as n, repeat('a', 40) as t1, repeat('b', 40) as t2, repeat('c', 40) as t3, repeat('d', 40) as t4, repeat('e', 40) as t5, repeat('f', 40) as t6, repeat('g', 40) as t7, repeat('h', 40) as t8, repeat('i', 40) as t9, repeat('j', 40) as t10 from generate_series(1, 600) g"
 one "PostgreSQL, 600 rows of ten text columns, no option" FTPG "" "$WIDE"
 one "PostgreSQL, the same rows, option fetch_rows: 5000" FTPG5000 "" "$WIDE"
+
+DECL="with recursive s (n) as (select 1 union all select n + 1 from s where n < 2000) select n, n * 2 as twice, cast('name' as char(765)) as a, cast('it' as char(30)) as l, cast(repeat('x', 137) as char(12000)) as flat, cast(repeat('y', 201) as char(12000)) as descr from s"
+one "MySQL, 2000 rows described far wider than they are, no option" FTMY "set session cte_max_recursion_depth = 5000" "$DECL"
+one "MySQL, the same rows, option fetch_rows: 5000" FTMY5000 "set session cte_max_recursion_depth = 5000" "$DECL"
+
+echo "== MySQL, 300 rows with a text of 100,000 characters each, which arrives whole (shown as [])"
+{ printf 'ISO *CHG\nC\n'
+  printf 'X create temporary table xdb_ft_long (n int primary key, t longtext)\n'
+  printf 'X set session cte_max_recursion_depth = 5000\n'
+  printf 'X insert into xdb_ft_long with recursive s (n) as (select 1 union all select n + 1 from s where n < 300) select n, repeat(char(122), 100000) from s\n'
+  printf 'Q select n, char_length(t) as chars, t from xdb_ft_long order by n\n%s\nROLLBACK\nD\n' "$INFO"
+} | XDB_TEST_RDB=FTMY $E/ardsh 2>&1 | show

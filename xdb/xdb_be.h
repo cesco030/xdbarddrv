@@ -250,7 +250,18 @@ extern const xbe_driver xbe_mssql;
 /* value of key in a "key=value key=value" string, NULL when absent */
 extern const char *xnet_kv(const char *info, const char *key, char *out, int outsize);
 /* TCP connect with timeout (seconds, 0 = system default); socket or -1 */
-extern int	xnet_connect(const char *host, const char *port, int timeout, xbe_err *e);
+/*
+ * sockbuf_kb: size of the send and receive buffer of the socket in KB.  -1 =
+ * the driver's own (XNET_SOCKBUF_KB), 0 = what the system gives a socket.
+ */
+#define XNET_SOCKBUF_KB 1024
+extern int	xnet_connect(const char *host, const char *port, int timeout, int sockbuf_kb, xbe_err *e);
+
+/* the receive buffer the socket has, in bytes; 0 = not known */
+extern long xnet_sockbuf(int fd);
+
+/* option socket_buffer of a connection string: KB, -1 when it is not there */
+extern int	xnet_sockbuf_opt(const char *conninfo);
 
 /* 1 = data can be read within timeout seconds, 0 = nothing came, -1 = error */
 extern int	xnet_wait_readable(int fd, int timeout);

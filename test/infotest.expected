@@ -254,6 +254,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [link] [session_id] [*]
   row: [link] [state] [idle]
   row: [link] [character_set] [utf8mb4]
+  row: [link] [socket_buffer] [*]
   row: [server] [product] [MySQL]
   row: [server] [version] [*]
   row: [server] [default_collation_id] [*]
@@ -305,7 +306,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [driver] [library] [EMULIB]
   row: [driver] [job_ccsid] [280]
   row: [driver] [connections_in_job] [1 of 16]
-  total rows=65 in 1 fetch calls
+  total rows=66 in 1 fetch calls
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -319,7 +320,8 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [link] [session_id] [*]
   row: [link] [state] [idle]
   row: [link] [character_set] [utf8mb4]
-  total rows=65 in 1 fetch calls
+  row: [link] [socket_buffer] [*]
+  total rows=66 in 1 fetch calls
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -350,7 +352,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [counters] [commits_failed] [0]
   row: [counters] [rollbacks] [0]
   row: [counters] [errors] [0]
-  total rows=65 in 1 fetch calls
+  total rows=66 in 1 fetch calls
 > Q select 3
 ARPD0100 -> sqlcode -911 sqlstate 40001 outlen 0 connection lost while idle; reconnected, the unit of work was rolled b
 > Q select * from xdb_connection_info
@@ -371,7 +373,7 @@ ARPD0100 -> sqlcode -911 sqlstate 40001 outlen 0 connection lost while idle; rec
   row: [counters] [commits_failed] [0]
   row: [counters] [rollbacks] [0]
   row: [counters] [errors] [1]
-  total rows=65 in 1 fetch calls
+  total rows=66 in 1 fetch calls
 > ROLLBACK
 > Q select 4
   total rows=1 in 1 fetch calls
@@ -393,7 +395,7 @@ ARPD0100 -> sqlcode -911 sqlstate 40001 outlen 0 connection lost while idle; rec
   row: [counters] [commits_failed] [0]
   row: [counters] [rollbacks] [1]
   row: [counters] [errors] [1]
-  total rows=65 in 1 fetch calls
+  total rows=66 in 1 fetch calls
 > COMMIT
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -416,6 +418,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [link] [session_id] [*]
   row: [link] [state] [idle]
   row: [link] [packet_size] [4096 bytes]
+  row: [link] [socket_buffer] [*]
   row: [server] [product] [Microsoft SQL Server]
   row: [server] [version] [*]
   row: [server] [database] [testdb]
@@ -469,7 +472,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [driver] [library] [EMULIB]
   row: [driver] [job_ccsid] [280]
   row: [driver] [connections_in_job] [1 of 16]
-  total rows=67 in 1 fetch calls
+  total rows=68 in 1 fetch calls
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -494,3 +497,5 @@ ARPD0100 -> sqlcode -204 sqlstate 42704 outlen 0 {xdb_connection_info|*N|N}
 ARPD0100 -> sqlcode -204 sqlstate 42704 outlen 0 {xdb_connection_info|*N|N}
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL: the buffer of the socket, without option socket_buffer and with 0
+  larger without the option: yes

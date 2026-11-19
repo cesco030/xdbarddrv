@@ -23,6 +23,7 @@ INSERT INTO XDBKWD (KWTYPE, KWKEY, KWKIND, KWTEXT, KWVALS) VALUES
  ('PG',    'target_session_attrs', 'C', 'Kind of server wanted',                    'any read-write read-only primary standby'),
  ('MYSQL', 'init_sql',         'D', 'Statement run right after the connect',        ''),
  ('MYSQL', 'tls',              'C', 'TLS mode, replaces Encryption',                'off prefer require verify'),
+ ('MYSQL', 'socket_buffer',    'C', 'KB of the socket buffers (0 = of the system)',  ''),
  ('MSSQL', 'init_sql',         'D', 'Statement run right after the connect',        ''),
  ('MSSQL', 'tds',              'C', 'Force the old protocol of SQL Server 2000',    '7.1'),
  ('MSSQL', 'encrypt',          'C', 'Encryption mode, replaces Encryption',         'off prefer on strict'),
@@ -30,4 +31,5 @@ INSERT INTO XDBKWD (KWTYPE, KWKEY, KWKIND, KWTEXT, KWVALS) VALUES
  ('MSSQL', 'charset',          'C', 'CCSID of varchar data, when not detected',     ''),
  ('MSSQL', 'string_params',    'C', 'Type used for character parameters',           'auto varchar nvarchar'),
  ('MSSQL', 'datetime2',        'C', 'Send dates as date/time/datetime2',            'on off'),
- ('MSSQL', 'appname',          'C', 'Application name shown on the server',         '');
+ ('MSSQL', 'appname',          'C', 'Application name shown on the server',         ''),
+ ('MSSQL', 'socket_buffer',    'C', 'KB of the socket buffers (0 = of the system)',  '');

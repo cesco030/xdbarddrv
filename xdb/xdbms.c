@@ -3187,7 +3187,7 @@ login(msc *c, const char *host, const char *user, const char *pw, const char *db
 }
 
 /*
- * conninfo keys: host port (1433) dbname connect_timeout passfile appname
+ * conninfo keys: host port (1433) dbname connect_timeout socket_buffer passfile appname
  *                charset=<CCSID of varchar data, default from the collation>
  *                string_params=auto|varchar|nvarchar (default auto)
  */
@@ -3259,7 +3259,7 @@ ms_connect(const xbe_opts *o, xbe_err *e)
 		c->tds = 0;
 		c->version = 0;
 		c->dead = 0;
-		c->fd = xnet_connect(host, port, timeout, e);
+		c->fd = xnet_connect(host, port, timeout, xnet_sockbuf_opt(o->conninfo), e);
 		if (c->fd < 0)
 		{
 			memset(pw, 0, sizeof pw);
@@ -3985,6 +3985,8 @@ ms_info(void *vc, xbe_info_add add, void *ctx)
 	add(ctx, "link", "state", c->dead ? "connection is not usable" : c->in_txn ? "in a transaction" : "idle");
 	snprintf(v, sizeof v, "%d bytes", c->psize);
 	add(ctx, "link", "packet_size", v);
+	snprintf(v, sizeof v, "%ld bytes", xnet_sockbuf(c->fd));
+	add(ctx, "link", "socket_buffer", v);
 
 	add(ctx, "server", "product", c->prod[0] ? c->prod : "SQL Server");
 	snprintf(v, sizeof v, "%d.%d.%d", c->ver4[0], c->ver4[1], (c->ver4[2] << 8) | c->ver4[3]);

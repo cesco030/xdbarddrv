@@ -586,7 +586,7 @@ my_disconnect(void *vc)
 
 /* one connection attempt; use_tls: 0 no, 1 yes */
 static myc *
-attempt(const char *host, const char *port, int timeout, const char *db, const char *user,
+attempt(const char *host, const char *port, int timeout, int sockbuf, const char *db, const char *user,
 		const char *pw, int use_tls, int verify, int *tls_failed, xbe_err *e)
 {
 	myc		   *c = calloc(1, sizeof(myc));
@@ -606,7 +606,7 @@ attempt(const char *host, const char *port, int timeout, const char *db, const c
 	*tls_failed = 0;
 	if (c == NULL)
 		return NULL;
-	c->fd = xnet_connect(host, port, timeout, e);
+	c->fd = xnet_connect(host, port, timeout, sockbuf, e);
 	if (c->fd < 0)
 	{
 		free(c);
@@ -795,7 +795,7 @@ static int	my_exec(void *vc, void *stmt, const char *sql, int np, char **pv, con
 					long long *rows, xbe_err *e);
 
 /*
- * conninfo keys: host port dbname connect_timeout passfile
+ * conninfo keys: host port dbname connect_timeout socket_buffer passfile
  *                tls=off|prefer|require|verify (default prefer)
  * The password comes from the CONNECT statement, the password key of
  * xdb.conf or the passfile (host:port:database:user:password lines).
@@ -813,7 +813,8 @@ my_connect(const xbe_opts *o, xbe_err *e)
 				t[16];
 	myc		   *c;
 	int			tf = 0,
-				timeout;
+				timeout,
+				sockbuf = xnet_sockbuf_opt(o->conninfo);
 
 	memset(e, 0, sizeof *e);
 	if (xnet_kv(o->conninfo, "host", host, sizeof host) == NULL)
@@ -828,12 +829,12 @@ my_connect(const xbe_opts *o, xbe_err *e)
 	if (pw[0] == '\0' && xnet_kv(o->conninfo, "passfile", pwf, sizeof pwf))
 		xnet_passfile(pwf, host, port, db, o->user, pw, sizeof pw);
 	if (strcmp(tls, "off") == 0)
-		c = attempt(host, port, timeout, db, o->user, pw, 0, 0, &tf, e);
+		c = attempt(host, port, timeout, sockbuf, db, o->user, pw, 0, 0, &tf, e);
 	else
 	{
-		c = attempt(host, port, timeout, db, o->user, pw, 1, strcmp(tls, "verify") == 0, &tf, e);
+		c = attempt(host, port, timeout, sockbuf, db, o->user, pw, 1, strcmp(tls, "verify") == 0, &tf, e);
 		if (c == NULL && tf == 1 && strcmp(tls, "prefer") == 0)
-			c = attempt(host, port, timeout, db, o->user, pw, 0, 0, &tf, e);
+			c = attempt(host, port, timeout, sockbuf, db, o->user, pw, 0, 0, &tf, e);
 	}
 	memset(pw, 0, sizeof pw);
 	if (c == NULL)
@@ -2520,6 +2521,8 @@ my_info(void *vc, xbe_info_add add, void *ctx)
 	add(ctx, "link", "state", c->dead ? "connection is not usable" :
 		(c->status & 0x0001) ? "in a transaction" : "idle");
 	add(ctx, "link", "character_set", "utf8mb4");
+	snprintf(v, sizeof v, "%ld bytes", xnet_sockbuf(c->fd));
+	add(ctx, "link", "socket_buffer", v);
 
 	add(ctx, "server", "product", strstr(c->vertext, "MariaDB") ? "MariaDB" : "MySQL");
 	add(ctx, "server", "version", c->vertext);

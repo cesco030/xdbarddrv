@@ -427,7 +427,7 @@ it talks to:
 | Area | Rows (the main ones) |
 |---|---|
 | `connection` | `rdb`, `database_type` (PostgreSQL, MySQL or SQL Server), `host`, `port`, `database`, `user`, `profile`, `connected` |
-| `link` | `protocol`, `encryption` (none, or the TLS level and the cipher), `session_id` (the number of the session on the server: process, connection id or SPID), `state` |
+| `link` | `protocol`, `encryption` (none, or the TLS level and the cipher), `session_id` (the number of the session on the server: process, connection id or SPID), `state`; on MySQL and SQL Server `socket_buffer` (the receive buffer of the connection in bytes) |
 | `server` | `product`, `version` as the server reports it, `version_number` (major * 100 + minor on every server), and what else the server said at the connect: encoding, time zone, database of the session; on PostgreSQL `notices` and `last_notice` (the notices and warnings the server sent beside its answers) |
 | `session` | `commit_mode`, `unit_of_work` (none, open, open with changes, or lost), `commit_resource` (the part of the connection in a commit), `statements`, `open_cursors`, `seconds_since_last_statement` |
 | `counters` | since CONNECT: `reconnects`, `last_reconnect`, `units_of_work_lost`, `idle_checks`, `statements_prepared`, `statements_executed`, `rows_changed`, `cursors_opened`, `fetch_requests`, `rows_fetched`, `fetches_from_server`, `commits`, `commits_failed`, `rollbacks`, `errors` |
@@ -613,7 +613,8 @@ POWER9 core) with rows of five columns:
 | the same, fetched one row with each FETCH instead of 500 | 19,000 to 30,000 |
 | a change of connection and an INSERT for every row | 6,000 |
 | read from a server on a distant network (MySQL) | 4,900: the 200 rows of an exchange set the pace |
-| the same with option `fetch_rows` = 400, 1000, 5000 | 9,500, 15,000, 17,000 |
+| the same with option `fetch_rows` = 400, 1000, 5000 (socket buffer of the system, 64 KB) | 9,500, 15,000, 17,000 |
+| 48,000 rows of 360 characters from the same server, columns described as CHAR(12000): groups sized by the description, by the rows, and with a socket buffer of 1 MB | 2,000, 3,800, 12,000 |
 | INSERT on a server, one row with each statement | 1,300 to 1,900 on the local network, 30 on the distant one |
 
 **Many rows from a server that is far away: option `fetch_rows`.** The
@@ -630,15 +631,33 @@ themselves.
 
 - Nothing changes for the program: the rows reach Db2 in blocks of the same
   size as before, and FETCH works as before, for one row or for many.
-- The driver asks for fewer rows by itself when the rows can be long, so
-  that one group stays within about 4 MB of memory for each open cursor;
-  that holds whatever the option says. The estimate takes character columns
-  at the length they are described with. MySQL sends long text and binary
-  values whole before they are cut to that length, so with such rows a high
-  number needs more memory than the estimate.
+- The driver asks for fewer rows by itself when the rows are long, so that
+  one group stays within about 4 MB of memory for each open cursor,
+  whatever the option says. The first group of a cursor is sized by what its
+  rows can be at the most, that is by the lengths its columns are described
+  with; the following ones by the largest row the cursor has delivered so
+  far. A query that describes its columns far wider than its values are
+  (`CAST(... AS CHAR(12000))` around a text of a few hundred characters) is
+  therefore not held back to a few dozen rows at a time, and rows that are
+  longer than described - MySQL sends long text and binary values whole
+  before they are cut - make the groups smaller. Because the rows to come
+  can be longer than those seen, what the rows can be at the most still
+  sets a ceiling: 64 MB for one group.
 - `XDB CONNECTION INFO` shows the number in force (`options`, `fetch_rows`)
   and how many exchanges a connection has had (`counters`,
   `fetches_from_server`).
+
+**The buffer of the connection: option `socket_buffer`** (MySQL and SQL
+Server). A server may send only as much ahead as the receiving socket has
+room for, and waits for the answer before it sends more. With the 64 KB a
+system usually gives a socket, a server that answers in 40 milliseconds
+gets about 1.5 MB a second across, however fast the line is. The driver
+asks for 1 MB for its connections (send and receive); option
+`socket_buffer` sets another size in KB, up to 8192, and 0 leaves what the
+system gives. In the measurement above this took the 17 MB of the 48,000
+rows from 12.6 to 4.0 seconds. `XDB CONNECTION INFO` shows the size in
+force (`link`, `socket_buffer`). Connections to PostgreSQL are made by its
+own client library and keep the size of the system.
 
 ## Updating
 

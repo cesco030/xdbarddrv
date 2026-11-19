@@ -24,6 +24,9 @@ export XDB_EMU_JOBCCSID=280 XDB_PRF_EMU=$P XDB_CONF=/dev/null XDB_SH_MAXROWS=200
   echo "W|INFMT|xdbpw"
   echo "P|INFMS|MSSQL|A|127.0.0.1|14330|testdb|sa|*OFF|10|0|1000|6|N"
   echo "W|INFMS|xdbpw"
+  echo "P|INFMZ|MYSQL|A|127.0.0.1|3306|xdbtest|xdbn|*OFF|10|0|1000|6|N"
+  echo "W|INFMZ|xdbpw"
+  echo "O|INFMZ|socket_buffer|C|0"
 } > $P
 
 # the rows of the areas named in $2 (all when empty), what varies replaced by *
@@ -31,7 +34,7 @@ show() {
   grep -E "^(>|AR|  row|  total)" | grep -v -E "^AR(PD|OC|CC|FC)0100 -> sqlcode (0|100) " |
   if test -n "$1"; then grep -E "^(>|AR|  total|  row: \[($1)\])"; else cat; fi |
   sed -E \
-    -e 's/(\[(connected|session_id|version|version_number|server_version_num|built|client_library|time_zone|date_style|default_collation_id|seconds_since_last_statement)\]) \[.*\]$/\1 [*]/' \
+    -e 's/(\[(connected|session_id|version|version_number|server_version_num|built|client_library|time_zone|date_style|default_collation_id|seconds_since_last_statement|socket_buffer)\]) \[.*\]$/\1 [*]/' \
     -e 's/(\[last_reconnect\]) \[[0-9].*\]$/\1 [*]/' \
     -e 's/(\[encryption\]) \[TLS .*\]$/\1 [TLS *]/' | cut -c1-150
 }
@@ -90,3 +93,13 @@ Q select * from xdb_connection_info where area = 'server'
 Q select name from xdb_connection_info
 D
 EOF
+
+# option socket_buffer: without it the driver asks for a buffer of 1 MB for its socket, with 0
+# the socket keeps what the system gives it.  How much a system grants is its own matter, so
+# only the comparison is shown.
+sockbuf() { printf 'ISO *CHG\nC\n%s\nROLLBACK\nD\n' "$INFO" | XDB_TEST_RDB=$1 $E/ardsh 2>&1 |
+  sed -n -E 's/^  row: \[link\] \[socket_buffer\] \[([0-9]+) bytes\]$/\1/p'; }
+echo "== MySQL: the buffer of the socket, without option socket_buffer and with 0"
+A=$(sockbuf INFMY); B=$(sockbuf INFMZ)
+if test -n "$A" && test -n "$B" && test "$A" -gt "$B"; then echo "  larger without the option: yes"
+else echo "  larger without the option: NO ($A, $B)"; fi
