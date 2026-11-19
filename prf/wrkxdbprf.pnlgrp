@@ -1030,6 +1030,68 @@ No authority is SQLCODE -551, a file in use -913. Message CPF9897 in
 the job log names the file.
 :EUL.
 :P.
+:HP2.Stored procedures of the server&colon.:EHP2.
+A procedure of the server is called with the statement of the
+server, as dynamic SQL&colon. CALL name(...) on PostgreSQL and
+MySQL, EXEC name ... on SQL Server. A program prepares and executes
+it; in STRSQL it is typed. The rows a procedure returns are fetched
+through a cursor on its call&colon.
+:XMP.
+PREPARE S1 FROM 'CALL MYPROC(?)'       (SQL Server: 'EXEC MYPROC ?')
+DECLARE C1 CURSOR FOR S1
+OPEN C1 USING :N
+FETCH C1 INTO :A, :B
+:EXMP.
+:UL.
+:LI.
+Values go in as parameter markers. An EXECUTE hands nothing back,
+no output parameter and no return code&colon. a value that comes
+back is left with the server and read with a query. On MySQL a
+variable of the session takes it&colon. CALL P(?, ?, @TOTAL) and
+then SELECT @TOTAL. On PostgreSQL write a function and select from
+it. On SQL Server put the value into a temporary table in the same
+batch as the EXEC.
+:LI.
+The procedure runs when the cursor is opened, once for each OPEN,
+with the values of that OPEN. The cursor has its first result set;
+further result sets are read and dropped.
+:LI.
+All rows are read at the OPEN and kept in the memory of the job
+until they are fetched. For very many rows let the procedure fill a
+temporary table and read that with an ordinary cursor.
+:LI.
+MySQL tells the columns of the rows only when the procedure has
+run. Db2 gets them with the OPEN, so FETCH INTO works as with any
+cursor; before its first OPEN the statement has no columns to
+describe. EXPLAIN and some SHOW statements of MySQL are opened and
+fetched in the same way.
+:LI.
+On PostgreSQL procedures return no rows, and the server refuses a
+cursor on a CALL (SQLCODE -104). A function that returns a table is
+a query&colon. SELECT * FROM F(?).
+:LI.
+A procedure that returns no result set has nothing to fetch&colon.
+the OPEN gets SQLCODE -517 (SQLSTATE 07005), and the procedure has
+run all the same. A procedure that fails gives its error to the
+OPEN.
+:LI.
+A call that is executed and not opened runs the procedure, and the
+rows it returns are dropped. STRSQL shows no rows for a CALL&colon.
+to look at them there, let the procedure fill a temporary table and
+select from it.
+:LI.
+PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE cannot be used on the rows of
+a call. GET_BLOB_FROM_FILE and GET_CLOB_FROM_FILE can be arguments
+of a call.
+:LI.
+A call counts as a change of the unit of work&colon. what the
+procedure did is committed or rolled back with the rest. A
+procedure that commits or rolls back by itself is better avoided.
+:LI.
+Program XDBPROC in the sources (test/xdbproc.sqlrpgle) is a sample
+for a MySQL server.
+:EUL.
+:P.
 :HP2.Errors&colon.:EHP2.
 For the usual errors, such as a name that is not found, a duplicate
 key or a syntax error, Db2 shows its own message. For the others it

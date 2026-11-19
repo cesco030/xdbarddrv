@@ -121,6 +121,7 @@ typedef struct
 	int			virt_done;
 	int			lost;			/* the cursor went with a lost connection */
 	int			reprep;			/* describe again on the new connection before use */
+	int			late_cols;		/* the columns came with the open, not with the describe */
 	xlob_plan  *lob;			/* file functions in the statement (xdblob.c), or NULL */
 	char	   *sinkval;		/* results of PUT_xLOB_TO_FILE for the rows in buf */
 } xstmt;
@@ -4380,6 +4381,28 @@ do_open(xsess *s, const char *in, char *ca, char *out, int outsize, int *outlen)
 	else
 		rc = s->be->open(s->bc, t->bstmt, t->sql, np, pv, pk, s->autocommit, &t->bcur, &e);
 	free_parms(pv, np);
+	if (rc == 0 && s->be->cursor_cols && (t->ncols == 0 || t->late_cols))
+	{
+		xbe_col    *cols = NULL;
+		int			nc = 0;
+
+		/*
+		 * The describe found no columns: the statement may be a CALL on a
+		 * server that tells the columns of a procedure's rows only when it
+		 * has run.  Then they are known now, and Db2 takes them from the
+		 * SQLDA that goes back with this open.
+		 */
+		rc = s->be->cursor_cols(s->bc, t->bcur, &cols, &nc, &e);
+		if (rc < 0)
+			s->be->close(s->bc, t->bcur);
+		else if (nc > 0)
+		{
+			describe_cols(s, t, cols, nc);
+			t->late_cols = 1;
+			tracef(s->trace, "  the server told the %d columns of the statement when it ran", t->ncols);
+		}
+		free(cols);
+	}
 	if (rc < 0)
 	{
 		sess_mend(s, &e);

@@ -1,0 +1,495 @@
+== the procedures
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X drop procedure if exists xdb_pt_add
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_fill
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_rows
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_two
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_none
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_fail
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop table if exists xdb_pt_log
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create table xdb_pt_log (n int)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create procedure xdb_pt_add(in a int, in b int, out total int) begin set total = a + b; end
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create procedure xdb_pt_fill(in p_n int) begin drop temporary table if exists xdb_pt_out; create t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create procedure xdb_pt_rows(in p_n int) begin insert into xdb_pt_log values (p_n); select n, n * 
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create procedure xdb_pt_two(in p_n int) begin select p_n as first_n, 'first' as which; select p_n 
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create procedure xdb_pt_none(in p_n int) begin set @xdb_pt_seen = p_n; end
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create procedure xdb_pt_fail(in p_n int) begin select p_n as n; signal sqlstate '45000' set messag
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== values in by markers, a value out through a session variable, rows through a temporary table
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> P s1 call xdb_pt_add(?, ?, @xdb_pt_total)
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 i:40|i:2
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select cast(@xdb_pt_total as char) as total
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col total type 449 len 21 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [42]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 i:1000|i:234
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select cast(@xdb_pt_total as char) as total
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col total type 449 len 21 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [1234]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X call xdb_pt_add(5, 6, @xdb_pt_total)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select cast(@xdb_pt_total as char) as total
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col total type 449 len 21 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [11]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> P s2 call xdb_pt_fill(?)
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s2 i:7
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=2
+> Q select n, sq, label from xdb_pt_out order by n
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col n type 497 len 4 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 40 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: 7 49 [row 7]
+  row: 8 64 [row 8]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=2 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== a cursor on a CALL: the rows of the procedure
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q call xdb_pt_rows(5)
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  the open tells 5 columns:
+  col n type 493 len 8 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 24 ccsid 280
+  col part type 485 len 2307 ccsid 0
+  col day type 453 len 29 ccsid 280
+  row: 5 25 [row 5] x'000000714F' [2026-01-06]
+  row: 6 36 [row 6] x'000000857F' [2026-01-07]
+  row: 7 49 [row 7] x'000001000F' [2026-01-08]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=3 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 1 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c1 call xdb_pt_rows(?) ## i:200
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  the open tells 5 columns:
+  col n type 493 len 8 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 24 ccsid 280
+  col part type 485 len 2307 ccsid 0
+  col day type 453 len 29 ccsid 280
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 200 
+  rows=3
+  row: 200 40000 [row 200] x'000028571F' [2026-07-20]
+  row: 201 40401 [row 201] x'000028714F' [2026-07-21]
+> F c1
+ARFC0100 -> sqlcode 100 sqlstate 02000 outlen 5 
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> A c1 ## i:300
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  the open tells 5 columns:
+  col n type 493 len 8 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 24 ccsid 280
+  col part type 485 len 2307 ccsid 0
+  col day type 453 len 29 ccsid 280
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 200 
+  rows=3
+  row: 300 90000 [row 300] x'000042857F' [2026-10-28]
+  row: 301 90601 [row 301] x'000043000F' [2026-10-29]
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> A c1 ## i:400
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  the open tells 5 columns:
+  col n type 493 len 8 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 24 ccsid 280
+  col part type 485 len 2307 ccsid 0
+  col day type 453 len 29 ccsid 280
+> A c1 ## i:500
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  the open tells 5 columns:
+  col n type 493 len 8 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 24 ccsid 280
+  col part type 485 len 2307 ccsid 0
+  col day type 453 len 29 ccsid 280
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 200 
+  rows=3
+  row: 500 250000 [row 500] x'000071429F' [2027-05-16]
+  row: 501 251001 [row 501] x'000071571F' [2027-05-17]
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select count(*) as calls, min(n) as first_n, max(n) as last_n from xdb_pt_log
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col calls type 493 len 8 ccsid 0
+  col first_n type 497 len 4 ccsid 0
+  col last_n type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: 5 5 500
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== executed only: the rows are read and dropped
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X call xdb_pt_rows(1)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> P s1 call xdb_pt_rows(?)
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1 i:2
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> E s1 i:3
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select 2 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 2
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== two result sets (the first is fetched), no result set, an error after the rows
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q call xdb_pt_two(7)
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  the open tells 2 columns:
+  col first_n type 497 len 4 ccsid 0
+  col which type 449 len 5 ccsid 280
+  row: 7 [first]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 3 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 3
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c2 call xdb_pt_none(?) ## i:9
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode -517 sqlstate 07005 outlen 8 {*N|*N}
+> Q XDB LAST ERROR
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 784 
+  col SQLCODE type 497 len 4 ccsid 0
+  col SQLSTATE type 453 len 5 ccsid 280
+  col NATIVE_ERROR type 497 len 4 ccsid 0
+  col DATABASE type 449 len 10 ccsid 280
+  col RDB type 449 len 18 ccsid 280
+  col MESSAGE_TEXT type 449 len 512 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 416 
+  row: -517 [07005] 0 [mysql] [PROCMY] [the statement ran and returned no rows: there is nothing to fetch]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select @xdb_pt_seen as seen
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col seen type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 9
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c3 call xdb_pt_fail(?) ## i:4
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode -438 sqlstate 45000 outlen 8 xdb_pt_fail says no
+> Q select 4 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 4
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> A c3 ## i:5
+AROC0100 -> sqlcode -438 sqlstate 45000 outlen 8 xdb_pt_fail says no
+> Q select 5 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 5
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== in a unit of work: the rows are there after the OPEN, ROLLBACK undoes what the procedure did
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X delete from xdb_pt_log
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=8
+> COMMIT
+> O c1 call xdb_pt_rows(?) ## i:10
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  the open tells 5 columns:
+  col n type 493 len 8 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 24 ccsid 280
+  col part type 485 len 2307 ccsid 0
+  col day type 453 len 29 ccsid 280
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 197 
+  rows=3
+  row: 10 100 [row 10] x'000001429F' [2026-01-11]
+  row: 11 121 [row 11] x'000001571F' [2026-01-12]
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select count(*) as logged from xdb_pt_log
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col logged type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> Q select count(*) as logged from xdb_pt_log
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col logged type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c1 call xdb_pt_rows(?) ## i:20
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
+  the open tells 5 columns:
+  col n type 493 len 8 ccsid 0
+  col sq type 493 len 8 ccsid 0
+  col label type 449 len 24 ccsid 280
+  col part type 485 len 2307 ccsid 0
+  col day type 453 len 29 ccsid 280
+> COMMIT
+> Q select count(*) as logged from xdb_pt_log
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col logged type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== statements the server describes when they run: EXPLAIN, some SHOW
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q explain select 1
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 800 
+  the open tells 12 columns:
+  col id type 485 len 5120 ccsid 0
+  col select_type type 449 len 19 ccsid 280
+  col table type 449 len 64 ccsid 280
+  col partitions type 449 len 1000 ccsid 280
+  col type type 449 len 10 ccsid 280
+  col possible_keys type 449 len 4096 ccsid 280
+  col key type 449 len 64 ccsid 280
+  col key_len type 449 len 4096 ccsid 280
+  col ref type 449 len 1024 ccsid 280
+  col rows type 485 len 5120 ccsid 0
+  col filtered type 481 len 8 ccsid 0
+  col Extra type 449 len 255 ccsid 280
+  row: x'000000000000000000001F' [SIMPLE] <null> <null> <null> <null> <null> <null> <null> <null> <null> [No tables used]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 6 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 6
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q show create table xdb_pt_log
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  the open tells 2 columns:
+  col Table type 449 len 64 ccsid 280
+  col Create Table type 449 len 1024 ccsid 280
+  row: [xdb_pt_log] [CREATE TABLE `xdb_pt_log` (
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q show tables like 'xdb_pt%'
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col Tables_in_xdbtest (xdb_pt%) type 449 len 64 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [xdb_pt_log]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 7 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 7
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== a table that got a column after the statement was prepared
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create temporary table xdb_pt_chg (a int)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_pt_chg values (1)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> O c5 select * from xdb_pt_chg
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col a type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+> F c5
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 13 
+  rows=1
+  row: 1
+> K c5
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X alter table xdb_pt_chg add column b varchar(10) default 'new', add column c int default 7
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> A c5
+AROC0100 -> sqlcode -438 sqlstate 07008 outlen 8 the columns of the statement are not those it had when it was prepared
+> Q XDB LAST ERROR
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 784 
+  col SQLCODE type 497 len 4 ccsid 0
+  col SQLSTATE type 453 len 5 ccsid 280
+  col NATIVE_ERROR type 497 len 4 ccsid 0
+  col DATABASE type 449 len 10 ccsid 280
+  col RDB type 449 len 18 ccsid 280
+  col MESSAGE_TEXT type 449 len 512 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 416 
+  row: -438 [07008] 0 [mysql] [PROCMY] [the columns of the statement are not those it had when it was prepared: prepare it again]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 8 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 8
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c5 select * from xdb_pt_chg
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col a type 497 len 4 ccsid 0
+  col b type 449 len 10 ccsid 280
+  col c type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+> F c5
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 24 
+  rows=1
+  row: 1 [new] 7
+> K c5
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== tidy
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X drop procedure if exists xdb_pt_add
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_fill
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_rows
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_two
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_none
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_fail
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop table if exists xdb_pt_log
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 

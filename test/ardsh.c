@@ -9,6 +9,8 @@
  *   R sql             the same in one fixed statement slot (as STRSQL does)
  *   O cur sql         open a cursor and leave it open (a|b params after " ## ")
  *   F cur             fetch one block         K cur    close
+ *   A cur [## a|b]    open the cursor again without preparing its statement, as a
+ *                     program does with a cursor it opens more than once
  *   COMMIT / ROLLBACK what the system does for them: the commit exit of every
  *                     connection, in the order of a commit (see ardharn.h)
  *   RDB name          the connection the next requests are for
@@ -34,7 +36,15 @@ static struct
 	char		name[20];
 	int			section;
 	char		sda[8192];
+	short		told;			/* columns the describe told */
 }			curs[16];
+static short told_cols;
+static struct
+{
+	char		name[20];
+	int			section;
+	short		told;
+}			last;				/* the cursor of the last O, for A */
 static int	nrows_total,
 			maxprint = 5;
 
@@ -116,21 +126,27 @@ parms(const char *spec, int off, int offfld)
 	return off + v;
 }
 
+/* sql = NULL: the statement of the section is prepared already, parms = " ## a|b" or NULL */
 static int
-open_cur(const char *name, int section, char *sql)
+open_cur(const char *name, int section, char *sql, char *parms_of_reopen)
 {
-	char	   *pp = strstr(sql, " ## ");
+	char	   *pp = sql ? strstr(sql, " ## ") : parms_of_reopen;
 	int			n,
 				v;
+	short		now;
 
 	if (pp)
 		*pp = '\0';
-	hdr(section);
-	J(in + 120, 18, name);
-	n = text(256, 112, sql);
-	if (call("ARPD0100", n) != 0)
-		return -1;
-	dump_sqlda(out);
+	if (sql != NULL)
+	{
+		hdr(section);
+		J(in + 120, 18, name);
+		n = text(256, 112, sql);
+		if (call("ARPD0100", n) != 0)
+			return -1;
+		dump_sqlda(out);
+		memcpy(&told_cols, out + 14, 2);
+	}
 	hdr(section);
 	in[130] = ile_job_ccsid() == 1208 ? '1' : 0xF1;
 	J(in + 148, 18, name);
@@ -141,6 +157,13 @@ open_cur(const char *name, int section, char *sql)
 		return -1;
 	memcpy(&v, out + 4, 4);
 	memcpy(sda, out + v, outlen - v);
+	/* columns the describe did not tell: the rows of a procedure on MySQL */
+	memcpy(&now, sda + 14, 2);
+	if (now != told_cols)
+	{
+		printf("  the open tells %d columns:\n", now);
+		dump_sqlda(sda);
+	}
 	return 0;
 }
 
@@ -248,7 +271,7 @@ main(int argc, char **argv)
 			else
 				++sect;
 			dump_done = 0;
-			if (open_cur("QC", sect, rest) == 0)
+			if (open_cur("QC", sect, rest, NULL) == 0)
 			{
 				for (;;)
 				{
@@ -287,10 +310,44 @@ main(int argc, char **argv)
 		{
 			for (i = 0; i < 16 && curs[i].name[0]; i++)
 				;
-			if (i < 16 && open_cur(w2, ++sect, rest + strlen(w2) + 1) == 0)
+			if (i < 16 && open_cur(w2, ++sect, rest + strlen(w2) + 1, NULL) == 0)
 			{
 				snprintf(curs[i].name, sizeof curs[i].name, "%s", w2);
 				curs[i].section = sect;
+				curs[i].told = told_cols;
+				memcpy(curs[i].sda, sda, sizeof sda);
+			}
+			if (i < 16)
+			{
+				/* the statement stays prepared when the open fails or the cursor is closed */
+				snprintf(last.name, sizeof last.name, "%s", w2);
+				last.section = sect;
+				last.told = told_cols;
+			}
+		}
+		else if (strcmp(w1, "A") == 0)
+		{
+			static char pb[4096];
+
+			if (strcmp(last.name, w2) != 0)
+			{
+				printf("  A is for the cursor of the last O\n");
+				continue;
+			}
+			for (i = 0; i < 16 && strcmp(curs[i].name, w2) != 0; i++)
+				;
+			if (i == 16)
+				for (i = 0; i < 16 && curs[i].name[0]; i++)
+					;
+			pb[0] = '\0';
+			if (strstr(rest, "## "))
+				snprintf(pb, sizeof pb, " %s", strstr(rest, "## "));
+			told_cols = last.told;
+			if (i < 16 && open_cur(w2, last.section, NULL, pb[0] ? pb : NULL) == 0)
+			{
+				snprintf(curs[i].name, sizeof curs[i].name, "%s", w2);
+				curs[i].section = last.section;
+				curs[i].told = last.told;
 				memcpy(curs[i].sda, sda, sizeof sda);
 			}
 		}

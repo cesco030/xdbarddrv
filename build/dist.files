@@ -75,3 +75,7 @@ test/cmttest.expected
 build/xdbstamp.c
 build/chk_savf.py
 build/savlib.txt
+build/xproc.sh
+test/xdbproc.sqlrpgle
+test/proctest_my.sh
+test/proctest_my.expected

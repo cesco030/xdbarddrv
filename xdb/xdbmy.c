@@ -93,6 +93,8 @@ typedef struct
 	unsigned	id;
 	int			nparams;
 	int			ncols;
+	int			pcols;			/* columns the prepare told; 0: known only when it runs */
+	xbe_col    *ocols;			/* the columns told when it ran (pcols = 0), for my_cursor_cols */
 	unsigned char *ctype;
 	unsigned short *cflags;		/* column flags; CF_HEX = binary data shown as hex */
 	int			cursor;			/* a server cursor is open */
@@ -1005,6 +1007,9 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 	int			j;
 	char		t[64];
 
+	/* no columns: realloc of 0 bytes frees, and the caller would free again */
+	if (s->ncols <= 0)
+		return -1;
 	nv = realloc(b->val, sizeof(char *) * (size_t) (b->nrows + 1) * (size_t) s->ncols);
 	if (nv == NULL)
 		return -1;
@@ -1233,6 +1238,57 @@ drain(myc *c, int binary, long long *rows, xbe_err *e)
 			break;
 	}
 	return rc;
+}
+
+/*
+ * The rows of a result set that the server sends at once (no cursor), and
+ * whatever follows them: the further result sets of a procedure, which are
+ * dropped, and the end of its CALL.  keep = the statement that keeps the
+ * rows (in keep->inl), NULL = they are dropped too.  The answer is read to
+ * its end whatever happens, so that the next command finds the connection
+ * in step with the server.  -1 with e set: the server reported an error,
+ * the connection broke or memory ran out; the caller releases keep->inl.
+ */
+static int
+rows_at_once(myc *c, mystmt *keep, xbe_err *e)
+{
+	int			nomem = 0;
+
+	for (;;)
+	{
+		if (pkt_read(c) < 0)
+		{
+			io_err(e, "read");
+			return -1;
+		}
+		if (c->buf[0] == 0xFF)
+		{
+			pkt_err(c, e);		/* an error ends the answer */
+			return -1;
+		}
+		if (is_eof(c))
+		{
+			c->status = (int) le(c->buf + 3, 2);
+			break;
+		}
+		if (keep && !nomem && row_decode(c, keep, &keep->inl) < 0)
+			nomem = 1;
+	}
+	if (c->status & ST_MORE_RESULTS)
+	{
+		long long	r;
+
+		if (drain(c, 1, &r, e) < 0)
+			return -1;
+	}
+	if (nomem)
+	{
+		memset(e, 0, sizeof *e);
+		snprintf(e->sqlstate, sizeof e->sqlstate, "57011");
+		snprintf(e->msg, sizeof e->msg, "not enough memory for the rows of the statement");
+		return -1;
+	}
+	return 0;
 }
 
 /* ----------------------------------------------- files (see xdblob.c) */
@@ -1947,6 +2003,7 @@ my_stmt_free(void *vc, void *vs)
 		batch_release(&s->inl);
 	free(s->ctype);
 	free(s->cflags);
+	free(s->ocols);
 	free(s->sink);
 	free(s);
 }
@@ -1997,6 +2054,7 @@ my_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 		return -1;
 	s->id = le(c->buf + 1, 4);
 	s->ncols = (int) le(c->buf + 5, 2);
+	s->pcols = s->ncols;
 	s->nparams = (int) le(c->buf + 7, 2);
 	if (read_coldefs(c, s->nparams, NULL, NULL, NULL, e) < 0)
 	{
@@ -2174,6 +2232,7 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 	myc		   *c = vc;
 	mystmt	   *s = stmt;
 	const unsigned char *p;
+	const char *bad;
 	int			n;
 
 	if (s == NULL)
@@ -2198,7 +2257,15 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		batch_release(&s->inl);
 	s->inl_used = 0;
 	s->done = 0;
-	if (stmt_execute(c, s, np, pv, 1, e) < 0)
+	/*
+	 * A cursor is asked for only when the prepare told the columns.  When it
+	 * told none (CALL, EXPLAIN, some SHOW and table maintenance statements)
+	 * the server has no cursor to give and sends the rows at once; asked for
+	 * one all the same, it refuses some of these statements ("Incorrect
+	 * arguments to with cursor") and MySQL 8.0 ends abnormally on a prepared
+	 * EXPLAIN (seen with 8.0.46: the server restarts).
+	 */
+	if (stmt_execute(c, s, np, pv, s->pcols > 0, e) < 0)
 		return -1;
 	if (pkt_read(c) < 0)
 	{
@@ -2213,13 +2280,62 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 	}
 	if (p[0] == 0x00)
 	{
+		/* it has run and has no rows to give: the answer is read to its end all the same */
+		p++;
+		lenenc(&p, NULL);
+		lenenc(&p, NULL);
+		c->status = (int) le(p, 2);
+		if (c->status & ST_MORE_RESULTS)
+		{
+			long long	r;
+
+			if (drain(c, 1, &r, e) < 0)
+				return -1;
+		}
 		memset(e, 0, sizeof *e);
 		snprintf(e->sqlstate, sizeof e->sqlstate, "07005");
-		snprintf(e->msg, sizeof e->msg, "statement is not a query");
+		snprintf(e->msg, sizeof e->msg, "the statement ran and returned no rows: there is nothing to fetch");
 		return -1;
 	}
 	n = (int) lenenc(&p, NULL);
-	if (read_coldefs(c, n, NULL, s->ctype, s->cflags, e) < 0)
+	bad = NULL;
+	if (s->pcols == 0)
+	{
+		/*
+		 * The prepare told no columns: the server describes the rows only
+		 * now that the statement has run (the rows of a procedure above all).
+		 */
+		free(s->ctype);
+		free(s->cflags);
+		free(s->ocols);
+		s->ncols = 0;
+		s->ctype = calloc((size_t) n + 1, 1);
+		s->cflags = calloc((size_t) n + 1, sizeof(unsigned short));
+		s->ocols = calloc((size_t) n + 1, sizeof(xbe_col));
+		if (s->ctype == NULL || s->cflags == NULL || s->ocols == NULL)
+			bad = "not enough memory for the columns of the statement";
+		else
+			s->ncols = n;
+	}
+	else if (n != s->ncols)
+		bad = "the columns of the statement are not those it had when it was prepared: prepare it again";
+	if (bad)
+	{
+		xbe_err		e2;
+
+		/* the statement has run: what the server sends is read and dropped */
+		memset(&e2, 0, sizeof e2);
+		if (read_coldefs(c, n, NULL, NULL, NULL, &e2) == 0)
+		{
+			if (c->status & ST_CURSOR_EXISTS)
+				stmt_reset(c, s);
+			else
+				rows_at_once(c, NULL, &e2);
+		}
+		lob_err(e, s->pcols == 0 ? "57011" : "07008", bad);
+		return -1;
+	}
+	if (read_coldefs(c, n, s->ocols, s->ctype, s->cflags, e) < 0)
 		return -1;
 	if (c->status & ST_CURSOR_EXISTS)
 	{
@@ -2232,23 +2348,16 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 	}
 	else
 	{
-		/* the server sent the rows at once: keep them on the client */
-		for (;;)
+		/*
+		 * The server sent the rows at once: they are kept on the client.
+		 * After the rows of a procedure come its further result sets, which
+		 * are dropped, and the end of the CALL.
+		 */
+		if (rows_at_once(c, s->nsink == 0 ? s : NULL, e) < 0)
 		{
-			if (pkt_read(c) < 0)
-			{
-				io_err(e, "read");
-				return -1;
-			}
-			if (c->buf[0] == 0xFF)
-			{
-				pkt_err(c, e);
-				return -1;
-			}
-			if (is_eof(c))
-				break;
-			if (s->nsink == 0 && row_decode(c, s, &s->inl) < 0)
-				return -1;
+			if (s->inl.val)
+				batch_release(&s->inl);
+			return -1;
 		}
 		s->done = 1;
 		if (s->nsink > 0)
@@ -2260,6 +2369,27 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		}
 	}
 	*cur = s;
+	return 0;
+}
+
+/* the columns of a cursor whose statement had none when it was prepared */
+static int
+my_cursor_cols(void *vc, void *cur, xbe_col **cols, int *ncols, xbe_err *e)
+{
+	mystmt	   *s = cur;
+
+	*cols = NULL;
+	*ncols = 0;
+	if (s == NULL || s->pcols != 0 || s->ocols == NULL || s->ncols <= 0)
+		return 0;
+	*cols = malloc(sizeof(xbe_col) * (size_t) s->ncols);
+	if (*cols == NULL)
+	{
+		lob_err(e, "57011", "not enough memory for the columns of the statement");
+		return -1;
+	}
+	memcpy(*cols, s->ocols, sizeof(xbe_col) * (size_t) s->ncols);
+	*ncols = s->ncols;
 	return 0;
 }
 
@@ -2414,5 +2544,6 @@ const xbe_driver xbe_mysql = {
 	"mysql", "?", "MYS", 0,
 	my_connect, my_disconnect, my_version,
 	my_exec, my_describe, my_stmt_free,
-	my_open, my_fetch, my_close, my_txn, my_ping, &my_lob, my_info
+	my_open, my_fetch, my_close, my_txn, my_ping, &my_lob, my_info,
+	my_cursor_cols
 };

@@ -222,6 +222,15 @@ typedef struct xbe_driver
 	 * time()); the core adds them to its own counters.  May be NULL.
 	 */
 	void		(*info) (void *c, xbe_info_add add, void *ctx);
+
+	/*
+	 * The columns of the cursor just opened, for a statement whose
+	 * describe() found none because its server tells them only when the
+	 * statement runs: the rows a MySQL procedure returns.  Called after an
+	 * open() that worked.  *ncols = 0: nothing to tell, the columns of
+	 * describe() stand; else *cols is the caller's to free.  May be NULL.
+	 */
+	int			(*cursor_cols) (void *c, void *cur, xbe_col **cols, int *ncols, xbe_err *e);
 } xbe_driver;
 
 extern const xbe_driver xbe_pg;

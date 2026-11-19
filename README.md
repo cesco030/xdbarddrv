@@ -260,6 +260,73 @@ What to know:
   given); no authority is -551, a file in use -913. Message CPF9897 in the
   job log names the file.
 
+## Stored procedures of the server
+
+A procedure of the server is called with the statement of the server, as
+dynamic SQL: `CALL name(...)` on PostgreSQL and MySQL, `EXEC name ...` on
+SQL Server. A program prepares and executes it or runs it with EXECUTE
+IMMEDIATE; in STRSQL it is typed. (A static `EXEC SQL CALL` with host
+variables is one of the static statements that are not supported yet, see
+"Limits".)
+
+**Values in and out.** Values go in as parameter markers. Nothing comes back
+from an EXECUTE: the interface Db2 calls the driver through hands back no
+output parameter and no return code. A value the procedure gives back is
+left with the server and read with a query:
+
+| Server | A value that comes back |
+|---|---|
+| MySQL, MariaDB | A variable of the session takes it: `CALL p(?, ?, @total)`, then `SELECT @total`. |
+| PostgreSQL | Written as a function it is a query: `SELECT * FROM f(?, ?)`. |
+| SQL Server | In one batch with the call it goes into a temporary table: `DECLARE @t int; EXEC p ?, ?, @t OUTPUT; INSERT INTO #out VALUES (@t)`, then `SELECT * FROM #out` (tried with Babelfish, not with a SQL Server). |
+
+**Rows.** The rows a procedure returns are fetched through a cursor on its
+call - PREPARE the call, DECLARE a cursor for the statement, OPEN it with
+the values, FETCH:
+
+| Server | The rows of a procedure |
+|---|---|
+| MySQL, MariaDB | A cursor on `CALL p(?)`. |
+| SQL Server | A cursor on `EXEC p ?`. |
+| PostgreSQL | Procedures return no rows there. A function that returns a table is a query: `SELECT * FROM f(?)`. A cursor on a CALL is refused by the server (SQLCODE -104). |
+
+What holds for a cursor on a call:
+
+- The procedure runs when the cursor is opened, once for each OPEN, with
+  the values of that OPEN. The cursor has its first result set; further
+  result sets are read and dropped.
+- All rows are read at the OPEN and kept in the memory of the job until
+  they are fetched. For a result of very many rows let the procedure fill a
+  temporary table and read that with an ordinary cursor, which takes the
+  rows from the server in blocks.
+- MySQL tells the columns of the rows only when the procedure has run. Db2
+  gets them with the answer to the OPEN, so `FETCH ... INTO` works as with
+  any cursor; before its first OPEN the statement has no columns to
+  describe.
+- A procedure that returns no result set has nothing to fetch: the OPEN
+  gets SQLCODE -517 (SQLSTATE 07005), and the procedure has run all the
+  same. A procedure that fails gives its error to the OPEN.
+- Executed and not opened (EXECUTE, EXECUTE IMMEDIATE, a call typed in
+  STRSQL), a procedure that returns rows runs and its rows are dropped.
+  STRSQL shows no rows for a CALL on any database: to look at them there,
+  let the procedure fill a temporary table and select from it.
+- `PUT_BLOB_TO_FILE` and `PUT_CLOB_TO_FILE` cannot be used on these rows;
+  `GET_BLOB_FROM_FILE` and `GET_CLOB_FROM_FILE` can be arguments of a call.
+
+A call counts as a change of the unit of work (see "COMMIT and ROLLBACK"):
+what the procedure did is committed or rolled back with the rest. A
+procedure that commits or rolls back by itself takes that decision away
+from the program and is better avoided.
+
+On MySQL the server tells the columns late for some other statements too:
+`EXPLAIN`, `SHOW CREATE TABLE`, `SHOW ENGINES`, `SHOW PROCESSLIST` and the
+like. They are opened and fetched in the same way.
+
+The sample `test/xdbproc.sqlrpgle` (script `build/xproc.sh`) creates three
+small procedures in a MySQL database you name, shows a value coming back,
+the rows through a cursor on the call and through a temporary table, and
+drops the procedures again.
+
 ## What the driver answers itself: the last error and the connection
 
 Two statements are not sent to the server: the driver answers them, on any
@@ -474,7 +541,7 @@ RST DEV('/QSYS.LIB/QGPL.LIB/XDBSRC.FILE')
 | `ile/` | ILE port layer of libpq |
 | `prf/` | WRKXDBPRF: DDS generator, RPG program, setup module, command, help panel group, option dictionary |
 | `build/` | QSH build scripts: `build_ile.sh` and `bind_ile.sh` (libpq), `build_xdb.sh` (driver), `build_prf.sh` (profiles, command, help), `dist.sh` (this package), `trial_all.sh` and `trial_upd.sh` (try a package in the build library: a first install, and an update of an installed older version); `gen_notices.py` writes the notices file from the sources of `pg/` |
-| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux test of the connection facts (`infotest.sh`), and three sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2") and `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is) |
+| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures on MySQL (`proctest_my.sh`), and four sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is) and `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) |
 | `doc/` | this file and `THIRD-PARTY-NOTICES.txt` |
 
 To build in a library of your own (ILE C and ILE RPG compilers needed), from
