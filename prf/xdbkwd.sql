@@ -8,6 +8,7 @@ INSERT INTO XDBKWD (KWTYPE, KWKEY, KWKIND, KWTEXT, KWVALS) VALUES
  ('*ALL',  'product',          'D', 'Product id reported to Db2, 8 characters',     ''),
  ('*ALL',  'idle_check',       'D', 'Seconds idle before the connection is tested',  ''),
  ('*ALL',  'ping_timeout',     'D', 'Seconds to wait for the answer to that test',   ''),
+ ('*ALL',  'fetch_rows',       'D', 'Rows asked from the server at a time (1-5000)', ''),
  ('*ALL',  'joblog',           'D', 'Server errors written to the job log',          'long all off'),
  ('*ALL',  'allowed_users',    'D', 'User or group profiles that may connect',       ''),
  ('*ALL',  'passfile',         'C', 'Password file (host:port:db:user:password)',   ''),

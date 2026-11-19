@@ -2116,15 +2116,11 @@ reply(msc *c, xbe_batch *sink, xbe_err *e)
 
 					if (sink && c->sets <= 1)
 					{
-						char	  **nv = realloc(sink->val, sizeof(char *) *
-												 (size_t) (sink->nrows + 1) * (size_t) (c->ncols ? c->ncols : 1));
-
-						if (nv == NULL)
+						if (xnet_batch_room(sink, c->ncols) < 0)
 						{
 							rc = -1;
 							break;
 						}
-						sink->val = nv;
 						row = &sink->val[sink->nrows * c->ncols];
 						for (j = 0; j < c->ncols; j++)
 							row[j] = NULL;

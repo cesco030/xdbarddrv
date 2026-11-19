@@ -431,8 +431,8 @@ it talks to:
 | `server` | `product`, `version` as the server reports it, `version_number` (major * 100 + minor on every server), and what else the server said at the connect: encoding, time zone, database of the session; on PostgreSQL `notices` and `last_notice` (the notices and warnings the server sent beside its answers) |
 | `session` | `commit_mode`, `unit_of_work` (none, open, open with changes, or lost), `commit_resource` (the part of the connection in a commit), `statements`, `open_cursors`, `seconds_since_last_statement` |
 | `counters` | since CONNECT: `reconnects`, `last_reconnect`, `units_of_work_lost`, `idle_checks`, `statements_prepared`, `statements_executed`, `rows_changed`, `cursors_opened`, `fetch_requests`, `rows_fetched`, `fetches_from_server`, `commits`, `commits_failed`, `rollbacks`, `errors` |
-| `options` | the settings in effect: `text_len`, `numeric_scale`, `ccsid`, `trim_char`, `idle_check`, `ping_timeout`, `joblog`, `trace`, and those only the database type has |
-| `limits` | statements for a connection, parameters for a statement, columns of a result, connections for a job, rows for each exchange |
+| `options` | the settings in effect: `text_len`, `numeric_scale`, `ccsid`, `trim_char`, `idle_check`, `ping_timeout`, `fetch_rows`, `joblog`, `trace`, and those only the database type has |
+| `limits` | statements for a connection, parameters for a statement, columns of a result, connections for a job, rows for each exchange with the server (what option `fetch_rows` says, 200 without it), bytes of a block handed to Db2 |
 | `driver` | `name`, `version` of the package, `built` (when the code the job runs was compiled), `library`, `job_ccsid`, `connections_in_job` |
 
 In a program the two statements can also be written `XDB LAST ERROR` and
@@ -587,7 +587,8 @@ into Db2:
 - Read with a cursor and **fetch in blocks**: `FETCH c FOR n ROWS INTO
   :array`. Take the number of rows from `SQLERRD(3)`: it can be less than n
   before the end. The driver brings up to 200 rows from the server with each
-  exchange whatever n is, so a few hundred is enough.
+  exchange whatever n is (more with option `fetch_rows`, see below), so a
+  few hundred is enough.
 - Write with the **record operations of the language** (WRITE to a file that
   is not under commitment control). They do not depend on the current
   connection, so nothing has to be changed.
@@ -612,7 +613,32 @@ POWER9 core) with rows of five columns:
 | the same, fetched one row with each FETCH instead of 500 | 19,000 to 30,000 |
 | a change of connection and an INSERT for every row | 6,000 |
 | read from a server on a distant network (MySQL) | 4,900: the 200 rows of an exchange set the pace |
+| the same with option `fetch_rows` = 400, 1000, 5000 | 9,500, 15,000, 17,000 |
 | INSERT on a server, one row with each statement | 1,300 to 1,900 on the local network, 30 on the distant one |
+
+**Many rows from a server that is far away: option `fetch_rows`.** The
+driver asks the server for the rows of a query in groups, 200 rows at a
+time, and each group is one exchange with the server. Where an exchange
+takes tens of milliseconds and the rows are short, that waiting is most of
+the time of a long read. Option `fetch_rows` of the profile (`WRKXDBPRF`,
+option 7; 1 to 5000) sets the size of the group. In the measurement above
+the distant server answered one exchange in about 40 milliseconds: 400 rows
+at a time doubled the speed, 1000 tripled it, and beyond that little was
+gained. On the local network the same runs gave between nothing and a
+third more, which is not clearly more than such runs differ among
+themselves.
+
+- Nothing changes for the program: the rows reach Db2 in blocks of the same
+  size as before, and FETCH works as before, for one row or for many.
+- The driver asks for fewer rows by itself when the rows can be long, so
+  that one group stays within about 4 MB of memory for each open cursor;
+  that holds whatever the option says. The estimate takes character columns
+  at the length they are described with. MySQL sends long text and binary
+  values whole before they are cut to that length, so with such rows a high
+  number needs more memory than the estimate.
+- `XDB CONNECTION INFO` shows the number in force (`options`, `fetch_rows`)
+  and how many exchanges a connection has had (`counters`,
+  `fetches_from_server`).
 
 ## Updating
 
@@ -672,7 +698,7 @@ RST DEV('/QSYS.LIB/QGPL.LIB/XDBSRC.FILE')
 | `ile/` | ILE port layer of libpq |
 | `prf/` | WRKXDBPRF: DDS generator, RPG program, setup module, command, help panel group, option dictionary |
 | `build/` | QSH build scripts: `build_ile.sh` and `bind_ile.sh` (libpq), `build_xdb.sh` (driver), `build_prf.sh` (profiles, command, help), `dist.sh` (this package), `trial_all.sh` and `trial_upd.sh` (try a package in the build library: a first install, and an update of an installed older version); `gen_notices.py` writes the notices file from the sources of `pg/` |
-| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`) and of the statements PostgreSQL runs only outside a transaction (`alonetest_pg.sh`), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
+| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`) and of the statements PostgreSQL runs only outside a transaction (`alonetest_pg.sh`), the Linux test of option `fetch_rows` (`fetchtest.sh`), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
 | `doc/` | this file and `THIRD-PARTY-NOTICES.txt` |
 
 To build in a library of your own (ILE C and ILE RPG compilers needed), from

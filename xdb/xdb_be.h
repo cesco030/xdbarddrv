@@ -47,6 +47,7 @@ typedef struct xbe_batch
 	int			nrows;
 	int			ncols;
 	int			eof;			/* set by the backend: nothing follows this batch */
+	int			cap;			/* rows val has room for (xnet_batch_room) */
 	char	  **val;
 	void	   *owner;
 	void		(*release) (struct xbe_batch *b);
@@ -269,6 +270,13 @@ extern int	xnet_dead(int fd, int unsolicited);
 extern int	xnet_passfile(const char *path, const char *host, const char *port,
 						  const char *db, const char *user, char *out, int outsize);
 extern void xnet_err(xbe_err *e, const char *sqlstate, const char *fmt,...);
+
+/*
+ * Room for one more row in the pointer table of a batch.  The table grows in
+ * steps, not row by row: a batch can have thousands of rows.  0, or -1 when
+ * memory is short (the table is then as it was).
+ */
+extern int	xnet_batch_room(xbe_batch *b, int ncols);
 
 /* TLS on an already connected socket (OpenSSL on Linux, GSKit on IBM i) */
 typedef struct xtls xtls;

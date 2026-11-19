@@ -568,6 +568,19 @@ fails with SQLCODE -911 and the unit of work is lost. 0 never tests.
 :PD.
 Seconds to wait for the answer to that test. Without the option it
 is 5.
+:PT.fetch_rows
+:PD.
+Rows of a query the driver asks from the server at a time, 1 to
+5000. Without the option it is 200. Each such group is one exchange
+with the server, so a higher number helps where the server is far
+away and the rows are short&colon. reading many rows then waits less
+often for the line. It changes nothing for a program&colon. the rows
+reach Db2 in blocks of the same size as before, and FETCH works as
+before. The driver asks for fewer rows by itself when the rows can
+be long, so that one group stays within about 4 MB; that limit
+holds whatever the option says. On MySQL long values arrive whole,
+so with rows that carry long text or binary values a high number
+needs more memory.
 :PT.joblog
 :PD.
 Which errors of the database server are written to the job log as
@@ -1222,7 +1235,8 @@ fetches_from_server, commits, commits_failed, rollbacks, errors.
 :PT.options
 :PD.
 The settings in effect&colon. text_len, numeric_scale, ccsid,
-trim_char, idle_check, ping_timeout, joblog, trace, and those only
+trim_char, idle_check, ping_timeout, fetch_rows, joblog, trace, and
+those only
 the database type has.
 :PT.limits
 :PD.

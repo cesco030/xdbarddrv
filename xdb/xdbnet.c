@@ -41,6 +41,38 @@ xnet_err(xbe_err *e, const char *sqlstate, const char *fmt,...)
 	va_end(ap);
 }
 
+int
+xnet_batch_room(xbe_batch *b, int ncols)
+{
+	char	  **nv;
+	int			want;
+
+	if (ncols < 1)
+		ncols = 1;
+	if (b->val != NULL && b->nrows < b->cap)
+		return 0;
+	want = b->cap < 32 ? 64 : b->cap * 2;
+	if (want <= b->nrows)
+		want = b->nrows + 64;
+	nv = realloc(b->val, sizeof(char *) * (size_t) want * (size_t) ncols);
+	if (nv == NULL)
+	{
+		/* one allocation has an end (16 MB on IBM i): the least that goes on */
+		want = b->nrows + b->nrows / 8 + 1;
+		nv = realloc(b->val, sizeof(char *) * (size_t) want * (size_t) ncols);
+	}
+	if (nv == NULL)
+	{
+		want = b->nrows + 1;
+		nv = realloc(b->val, sizeof(char *) * (size_t) want * (size_t) ncols);
+	}
+	if (nv == NULL)
+		return -1;
+	b->val = nv;
+	b->cap = want;
+	return 0;
+}
+
 const char *
 xnet_kv(const char *info, const char *key, char *out, int outsize)
 {

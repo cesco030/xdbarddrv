@@ -85,5 +85,7 @@ test/proctest_pg.sh
 test/proctest_pg.expected
 test/alonetest_pg.sh
 test/alonetest_pg.expected
+test/fetchtest.sh
+test/fetchtest.expected
 build/xrun.sh
 test/xdbrun.sqlrpgle

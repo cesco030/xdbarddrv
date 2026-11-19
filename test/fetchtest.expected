@@ -1,0 +1,324 @@
+== PostgreSQL, 2500 short rows, option fetch_rows: none
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select g as n, g * 2 as twice from generate_series(1, 2500) g
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [13]
+  row: [options] [fetch_rows] [200]
+  row: [limits] [rows_per_exchange] [200]
+  total rows=77
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL, 2500 short rows, option fetch_rows: none
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X set session cte_max_recursion_depth = 5000
+> Q with recursive s (n) as (select 1 union all select n + 1 from s where n < 2500) select n, n * 2 as
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [13]
+  row: [options] [fetch_rows] [200]
+  row: [limits] [rows_per_exchange] [200]
+  total rows=65
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== SQL Server, 2500 short rows, option fetch_rows: none
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_ft (n int primary key); declare @i int; set @i = 1; while @i <= 2500 begin inser
+> Q select n, n * 2 as twice from #xdb_ft order by n
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [13]
+  row: [options] [fetch_rows] [200]
+  row: [limits] [rows_per_exchange] [200]
+  total rows=67
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PostgreSQL, 2500 short rows, option fetch_rows: 1000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select g as n, g * 2 as twice from generate_series(1, 2500) g
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [3]
+  row: [options] [fetch_rows] [1000]
+  row: [limits] [rows_per_exchange] [1000]
+  total rows=77
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL, 2500 short rows, option fetch_rows: 1000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X set session cte_max_recursion_depth = 5000
+> Q with recursive s (n) as (select 1 union all select n + 1 from s where n < 2500) select n, n * 2 as
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [3]
+  row: [options] [fetch_rows] [1000]
+  row: [limits] [rows_per_exchange] [1000]
+  total rows=65
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== SQL Server, 2500 short rows, option fetch_rows: 1000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_ft (n int primary key); declare @i int; set @i = 1; while @i <= 2500 begin inser
+> Q select n, n * 2 as twice from #xdb_ft order by n
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [3]
+  row: [options] [fetch_rows] [1000]
+  row: [limits] [rows_per_exchange] [1000]
+  total rows=67
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PostgreSQL, 2500 short rows, option fetch_rows: 5000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select g as n, g * 2 as twice from generate_series(1, 2500) g
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [1]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=77
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL, 2500 short rows, option fetch_rows: 5000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X set session cte_max_recursion_depth = 5000
+> Q with recursive s (n) as (select 1 union all select n + 1 from s where n < 2500) select n, n * 2 as
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [1]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=65
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== SQL Server, 2500 short rows, option fetch_rows: 5000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_ft (n int primary key); declare @i int; set @i = 1; while @i <= 2500 begin inser
+> Q select n, n * 2 as twice from #xdb_ft order by n
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [1]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=67
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PostgreSQL, 2500 short rows, option fetch_rows: 99999
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select g as n, g * 2 as twice from generate_series(1, 2500) g
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [1]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=77
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL, 2500 short rows, option fetch_rows: 99999
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X set session cte_max_recursion_depth = 5000
+> Q with recursive s (n) as (select 1 union all select n + 1 from s where n < 2500) select n, n * 2 as
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [1]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=65
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== SQL Server, 2500 short rows, option fetch_rows: 99999
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X create table #xdb_ft (n int primary key); declare @i int; set @i = 1; while @i <= 2500 begin inser
+> Q select n, n * 2 as twice from #xdb_ft order by n
+  row: 1 2
+  row: 199 398
+  row: 200 400
+  row: 201 402
+  row: 600 1200
+  row: 1000 2000
+  row: 1001 2002
+  row: 2500 5000
+  total rows=2500
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [2500]
+  row: [counters] [fetches_from_server] [1]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=67
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PostgreSQL, 600 rows of ten text columns, no option
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select g as n, repeat('a', 40) as t1, repeat('b', 40) as t2, repeat('c', 40) as t3, repeat('d', 40
+  row: 1 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddddd
+  row: 199 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  row: 200 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  row: 201 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  row: 600 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  total rows=600
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [600]
+  row: [counters] [fetches_from_server] [4]
+  row: [options] [fetch_rows] [200]
+  row: [limits] [rows_per_exchange] [200]
+  total rows=77
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PostgreSQL, the same rows, option fetch_rows: 5000
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select g as n, repeat('a', 40) as t1, repeat('b', 40) as t2, repeat('c', 40) as t3, repeat('d', 40
+  row: 1 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddddd
+  row: 199 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  row: 200 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  row: 201 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  row: 600 [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] [bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb] [cccccccccccccccccccccccccccccccccccccccc] [ddddddddd
+  total rows=600
+> Q select * from xdb_connection_info
+  row: [counters] [rows_fetched] [600]
+  row: [counters] [fetches_from_server] [4]
+  row: [options] [fetch_rows] [5000]
+  row: [limits] [rows_per_exchange] [5000]
+  total rows=77
+> ROLLBACK
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 

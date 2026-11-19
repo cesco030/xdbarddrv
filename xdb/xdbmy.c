@@ -1003,17 +1003,14 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 {
 	const unsigned char *p = c->buf + 1;
 	const unsigned char *nb = p;
-	char	  **nv;
 	int			j;
 	char		t[64];
 
-	/* no columns: realloc of 0 bytes frees, and the caller would free again */
+	/* no columns: there is no row to keep, and nothing to allocate for one */
 	if (s->ncols <= 0)
 		return -1;
-	nv = realloc(b->val, sizeof(char *) * (size_t) (b->nrows + 1) * (size_t) s->ncols);
-	if (nv == NULL)
+	if (xnet_batch_room(b, s->ncols) < 0)
 		return -1;
-	b->val = nv;
 	p += (s->ncols + 7 + 2) / 8;
 	for (j = 0; j < s->ncols; j++)
 	{
@@ -1369,8 +1366,6 @@ text_query(myc *c, const char *sql, xbe_batch *b, xbe_err *e)
 		return -1;
 	for (;;)
 	{
-		char	  **nv;
-
 		if (pkt_read(c) < 0)
 		{
 			io_err(e, "read");
@@ -1385,14 +1380,12 @@ text_query(myc *c, const char *sql, xbe_batch *b, xbe_err *e)
 		}
 		if (is_eof(c))
 			break;
-		nv = realloc(b->val, sizeof(char *) * (size_t) (b->nrows + 1) * (size_t) n);
-		if (nv == NULL)
+		if (xnet_batch_room(b, n) < 0)
 		{
 			batch_release(b);
 			c->dead = 1;		/* the rest of the result is not read */
 			return -1;
 		}
-		b->val = nv;
 		p = c->buf;
 		for (j = 0; j < n; j++)
 		{

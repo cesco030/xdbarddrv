@@ -43,7 +43,8 @@ extern int	ile_job_ccsid(void);
 #define MAXSTMT 64
 #define MAXCOL 256
 #define MAXPARM 256
-#define FETCHROWS 200
+#define FETCHROWS 200			/* rows asked from the server at a time, unless option fetch_rows says otherwise */
+#define FETCHROWS_MAX 5000
 /* Db2 mishandles ARD result blocks larger than 64K (phantom rows, SQLCODE -30000): stay below 32K */
 #define BLOCKMAX 32000
 
@@ -134,6 +135,7 @@ typedef struct
 	const xbe_driver *be;
 	void	   *bc;				/* backend connection */
 	int			autocommit;
+	int			fetch_rows;		/* option fetch_rows: rows asked from the server at a time */
 	int			in_txn;
 	int			cmt_registered;
 	int			cmt_wanted;
@@ -1575,6 +1577,7 @@ conn_info_rows(xsess *s, xinfo *x)
 	else
 		info_add(x, "options", "idle_check", "off");
 	info_addf(x, "options", "ping_timeout", "%d seconds", s->ping_timeout);
+	info_addf(x, "options", "fetch_rows", "%d", s->fetch_rows);
 	info_add(x, "options", "joblog", s->joblog == 2 ? "all" : s->joblog == 1 ? "long" : "off");
 	info_add(x, "options", "trace", s->trace[0] ? s->trace : "off");
 	if (bx)
@@ -1588,7 +1591,7 @@ conn_info_rows(xsess *s, xinfo *x)
 	info_addf(x, "limits", "parameters_per_statement", "%d", MAXPARM);
 	info_addf(x, "limits", "columns_per_result", "%d", MAXCOL);
 	info_addf(x, "limits", "connections_per_job", "%d", MAXSESS);
-	info_addf(x, "limits", "rows_per_exchange", "%d", FETCHROWS);
+	info_addf(x, "limits", "rows_per_exchange", "%d", s->fetch_rows);
 	info_addf(x, "limits", "bytes_per_block", "%d", BLOCKMAX);
 
 	info_add(x, "driver", "name", "XDBARDDRV");
@@ -3652,6 +3655,9 @@ do_connect(const char *in, char *ca, char *out, int *outlen)
 	snprintf(gtrace, sizeof gtrace, "%s", s->trace);
 	s->text_len = conf_get(rdb, "text_len", val, sizeof val) == 0 ? atoi(val) : 1000;
 	s->num_scale = conf_get(rdb, "numeric_scale", val, sizeof val) == 0 ? atoi(val) : 6;
+	s->fetch_rows = conf_get(rdb, "fetch_rows", val, sizeof val) == 0 && atoi(val) > 0 ? atoi(val) : FETCHROWS;
+	if (s->fetch_rows > FETCHROWS_MAX)
+		s->fetch_rows = FETCHROWS_MAX;
 	s->savepoints = be->needs_savepoints &&
 		!(conf_get(rdb, "savepoints", val, sizeof val) == 0 && strcmp(val, "off") == 0);
 	s->trim_char = !(conf_get(rdb, "trim_char", val, sizeof val) == 0 && strcmp(val, "off") == 0);
@@ -4554,11 +4560,14 @@ opened:
 }
 
 /*
- * Rows asked from the backend at a time: FETCHROWS, fewer when the rows can
- * be long, so that one batch stays within a few megabytes.
+ * Rows asked from the backend at a time: what option fetch_rows says (200
+ * without it), fewer when the rows can be long, so that one batch stays
+ * within a few megabytes whatever the option says.  More rows at a time are
+ * fewer exchanges with the server, which counts when the server is far away
+ * and the rows are short; the blocks handed to Db2 are not touched by it.
  */
 static int
-fetch_rows(const xstmt *t)
+fetch_rows(const xsess *s, const xstmt *t)
 {
 	long		est = 16;
 	int			i,
@@ -4571,7 +4580,7 @@ fetch_rows(const xstmt *t)
 		est += (t->cols[i].sqltype == T_CHAR || t->cols[i].sqltype == T_VARCHAR) ?
 			(long) t->cols[i].len * 2 + 8 : 24;
 	n = (int) (4000000L / est);
-	return n < 1 ? 1 : n > FETCHROWS ? FETCHROWS : n;
+	return n < 1 ? 1 : n > s->fetch_rows ? s->fetch_rows : n;
 }
 
 static void
@@ -4647,7 +4656,7 @@ do_fetch(xsess *s, const char *in, char *ca, char *out, int outsize, int *outlen
 				if (t->lob && t->lob->nout > 0)
 					frc = lob_fetch(s, t, &e);
 				else
-					frc = s->be->fetch(s->bc, t->bcur, fetch_rows(t), &t->buf, &e);
+					frc = s->be->fetch(s->bc, t->bcur, fetch_rows(s, t), &t->buf, &e);
 			}
 			if (frc < 0)
 			{
