@@ -99,6 +99,21 @@ set_err(pgc *c, PGresult *r, xbe_err *e)
 	snprintf(e->sqlstate, sizeof e->sqlstate, "%s", (st && strlen(st) == 5) ? st : "58004");
 	if (PQstatus(c->pg) != CONNECTION_OK)
 		snprintf(e->sqlstate, sizeof e->sqlstate, "08006");
+	else if (st && strcmp(st, "25001") == 0)
+	{
+		/*
+		 * CREATE DATABASE, VACUUM and the like: refused because a transaction
+		 * is open, before anything was done.  Told by the routine of the
+		 * server that raised the error (its name before version 11 is the
+		 * second one), not by the text, which is in the language of the
+		 * server; the same SQLSTATE comes from other places too (SET
+		 * TRANSACTION after the first query), and those are not meant.
+		 */
+		const char *fn = PQresultErrorField(r, PG_DIAG_SOURCE_FUNCTION);
+
+		if (fn && (strcmp(fn, "PreventInTransactionBlock") == 0 || strcmp(fn, "PreventTransactionChain") == 0))
+			e->alone = 1;
+	}
 }
 
 static int	run(pgc *c, const char *sql, xbe_err *e);

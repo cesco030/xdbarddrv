@@ -298,6 +298,11 @@ Database - Help
 :P.
 The database on the server. Upper and lower case are kept as typed,
 and most servers tell them apart.
+:P.
+PostgreSQL&colon. a name that was written without quotation marks
+when the database was created is in lower case on the server (CREATE
+DATABASE SALES makes sales). Left empty, the server is asked for a
+database with the name of the user.
 :EHELP.
 :HELP NAME='XDB/PRF/USER'.
 User - Help
@@ -758,6 +763,11 @@ The statements are written in the SQL of the server, with its names
 and its functions. A name with lower case letters is put between
 double quotation marks where the server asks for that.
 :P.
+The session has to run under commitment control&colon. STRSQL
+COMMIT(*CHG), or F13 and Change session attributes. With *NONE the
+CONNECT works and every statement after it is refused with message
+SQL5028; Db2 allows *NONE only for Db2 for i.
+:P.
 :HP2.Connections&colon.:EHP2.
 :UL.
 :LI.
@@ -862,6 +872,44 @@ two-phase commit.
 :P.
 Program XDBLOST in the sources (test/xdblost.sqlrpgle) lets sessions
 end inside units of work and prints what COMMIT answers.
+:P.
+:HP2.Statements a server runs only outside a transaction&colon.:EHP2.
+:P.
+The first statement of a unit of work opens a transaction on the
+server, and PostgreSQL refuses some statements inside one&colon.
+CREATE DATABASE, DROP DATABASE, VACUUM, CREATE INDEX CONCURRENTLY,
+ALTER SYSTEM and a few more (SQLSTATE 25001). The driver runs such
+a statement on its own when the unit of work has no change and no
+open cursor on that connection&colon. it ends its empty transaction,
+runs the statement, and begins a new transaction with the next
+statement. So it works as the first statement after CONNECT, COMMIT
+or ROLLBACK, and after statements that only read.
+:XMP.
+COMMIT
+VACUUM ANALYZE ORDERS
+:EXMP.
+:UL.
+:LI.
+What the statement did is final at once&colon. a ROLLBACK does not
+undo it.
+:LI.
+A SET of the session that ran before it in the same unit of work
+stays.
+:LI.
+With changes or an open cursor in the unit of work the statement is
+refused (SQLCODE -438, SQLSTATE 25001); the text in the job log and
+in SELECT * FROM XDB_LAST_ERROR says what is in the way. Run COMMIT
+or ROLLBACK first. The unit of work goes on.
+:LI.
+In a program&colon. EXECUTE IMMEDIATE, or PREPARE and EXECUTE.
+:LI.
+With option savepoints off the statement is also refused after a
+SET in the same unit of work&colon. run COMMIT after the SET.
+:LI.
+Only for PostgreSQL. SQL Server refuses CREATE DATABASE and some
+other statements inside a transaction too; there they are still
+refused.
+:EUL.
 :P.
 :HP2.Programs with embedded SQL&colon.:EHP2.
 :UL.
@@ -1476,6 +1524,20 @@ the current directory of the job.
 :PD.
 The program was created with RDB(*NONE). Create it again with
 RDB(*LOCAL) COMMIT(*CHG).
+:PT.Every statement is refused with SQL5028
+:PD.
+The session or the program runs without commitment control. Use
+STRSQL COMMIT(*CHG), or create the program with COMMIT(*CHG).
+:PT.The server does not know the database
+:PD.
+On PostgreSQL a name written without quotation marks is in lower
+case&colon. type it in lower case in the profile. A profile without
+a database asks for one with the name of the user.
+:PT.A statement cannot run inside a transaction (SQLSTATE 25001)
+:PD.
+The server runs it only outside a transaction, and the unit of work
+has changes or an open cursor. Run COMMIT or ROLLBACK, then the
+statement. See the topic about using a profile from SQL.
 :PT.Relational database not in the directory
 :PD.
 The RDB directory entry is missing; use option 8.

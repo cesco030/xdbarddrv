@@ -148,6 +148,7 @@ typedef struct
 	 * connection ends early.
 	 */
 	int			uow_dirty;		/* it has changed something on the server */
+	int			uow_set;		/* a SET of the session ran in the transaction: only a COMMIT keeps it */
 	int			uow_lost;		/* ... and the server has lost that: it cannot be committed */
 	char		uow_why[200];	/* how it was lost */
 	int			voted_no;		/* the last commit ended with this connection's no: a rollback
@@ -1832,6 +1833,7 @@ uow_reset(xsess *s)
 {
 	s->in_txn = 0;
 	s->uow_dirty = 0;
+	s->uow_set = 0;
 	s->uow_lost = 0;
 	s->uow_why[0] = '\0';
 }
@@ -2001,6 +2003,8 @@ uow_touch(xsess *s, const char *sql, int cursor)
 		s->uow_dirty = 1;
 		tracef(s->trace, "  the unit of work has changes on the server now");
 	}
+	else if (!cursor)
+		s->uow_set = 1;
 }
 
 /*
@@ -4084,12 +4088,85 @@ do_prepare(xsess *s, const char *in, char *ca, int section, const char *pkg,
 	return t;
 }
 
+/*
+ * The server has refused a statement because it runs it only outside a
+ * transaction (PostgreSQL: CREATE DATABASE, VACUUM and the like), and has
+ * done nothing.  Under commitment control the driver has a transaction open
+ * on the server from the first statement of a unit of work on, and without
+ * commitment control Db2 lets no statement through to a database that is not
+ * Db2 for i (SQL5028): so no program could ever run such a statement.
+ *
+ * When the unit of work has nothing on this connection that its COMMIT or
+ * ROLLBACK would still decide - no change, no open cursor - the transaction
+ * of the driver is empty.  It is ended (committed, so that a SET of the
+ * session made in it stays), the statement runs on its own and is final at
+ * once, and the next statement begins a new transaction.  Otherwise the
+ * program is told to end its unit of work first.
+ *
+ * 0 = the statement ran; -1 = e says why not (the first error, or the one
+ * of the second run).
+ */
+static int
+exec_alone(xsess *s, xstmt *t, const char *sql, int np, char **pv, const int *pk,
+		   long long *rows, xbe_err *e)
+{
+	xbe_err		b;
+	const char *has = NULL,
+			   *todo = "COMMIT or ROLLBACK first";
+	int			i;
+
+	if (s->autocommit || !s->in_txn)
+		return -1;				/* no transaction of ours is in the way */
+	for (i = 0; i < MAXSTMT; i++)
+		if (s->st[i].used && s->st[i].is_open)
+			has = "an open cursor";
+	if (s->uow_dirty || s->uow_lost)
+		has = "changes";
+	else if (has == NULL && s->uow_set && !s->savepoints)
+	{
+		/*
+		 * Without a savepoint for each statement the refusal has spoiled the
+		 * transaction: it can only be rolled back, and the SET would go with
+		 * it unnoticed.
+		 */
+		has = "a SET of the session";
+		todo = "it stays only with a COMMIT, so COMMIT after the SET";
+	}
+	if (has)
+	{
+		char		m[sizeof e->msg];
+
+		snprintf(m, sizeof m, "%.230s - the server runs this statement only outside a transaction, "
+				 "and this unit of work has %s on the connection: %s, then run it",
+				 e->msg, has, todo);
+		snprintf(e->msg, sizeof e->msg, "%s", m);
+		tracef(s->trace, "  only outside a transaction, and the unit of work is not empty (%s): refused", has);
+		return -1;
+	}
+	/* the failed statement goes back to its savepoint, then the empty transaction ends */
+	stmt_failed(s);
+	if (txn_op(s, s->savepoints ? XT_COMMIT : XT_ROLLBACK, &b) < 0)
+	{
+		txn_op(s, XT_ROLLBACK, NULL);
+		uow_reset(s);
+		tracef(s->trace, "  only outside a transaction, and the empty transaction could not be ended");
+		return -1;
+	}
+	uow_reset(s);
+	tracef(s->trace, "  only outside a transaction: the unit of work was empty, its transaction is ended "
+		   "and the statement runs on its own");
+	memset(e, 0, sizeof *e);
+	*rows = 0;
+	return s->be->exec(s->bc, t ? t->bstmt : NULL, sql, np, pv, pk, rows, e);
+}
+
 static void
 do_execute(xsess *s, char *ca, xstmt *t, const char *sql, int np, char **pv, const int *pk,
 		   char *out, int *outlen)
 {
 	long long	rows = 0;
 	xbe_err		e;
+	int			alone = 0;		/* the statement ran outside the unit of work */
 	const xlob_plan *pl = t ? t->lob : s->lob_new;	/* file functions in the statement */
 	int			rc;
 
@@ -4144,7 +4221,14 @@ do_execute(xsess *s, char *ca, xstmt *t, const char *sql, int np, char **pv, con
 		}
 	}
 	else
+	{
 		rc = s->be->exec(s->bc, t ? t->bstmt : NULL, sql, np, pv, pk, &rows, &e);
+		if (rc < 0 && e.alone)
+		{
+			rc = exec_alone(s, t, sql, np, pv, pk, &rows, &e);
+			alone = !s->in_txn;	/* whatever came of it, no transaction is open now */
+		}
+	}
 	if (rc < 0)
 	{
 		sess_mend(s, &e);
@@ -4159,8 +4243,12 @@ do_execute(xsess *s, char *ca, xstmt *t, const char *sql, int np, char **pv, con
 			sqlca_set(ca, 0, "00000", "", rows > 2147483647 ? 2147483647 : (int) rows);
 		tracef(s->trace, "  ok, %lld rows", rows);
 		s->n_changed += rows > 0 ? rows : 0;
-		uow_touch(s, sql, 0);
-		register_commit(s);
+		if (!alone)
+		{
+			/* what ran on its own is final: the unit of work has nothing of it to commit */
+			uow_touch(s, sql, 0);
+			register_commit(s);
+		}
 	}
 	setfld(out, 1, s->autocommit ? "0" : "1");
 	*outlen = 1;

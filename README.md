@@ -152,6 +152,21 @@ After the setup the library is no longer needed in the library list.
    option and key, the rules for programs with embedded SQL, and what to do
    when something fails.
 
+Two things that are met on the first day:
+
+- **SQL5028 at the first statement.** The connections work only under
+  commitment control: Db2 lets no statement through to a database that is
+  not Db2 for i from a session or a program that runs with commitment
+  control *NONE (`COMMIT(*NONE) valid only if relational database ... is
+  DB2 for IBM i`, SQLSTATE 560C4). The CONNECT itself works. In STRSQL:
+  `STRSQL COMMIT(*CHG)`, or F13 and "Change session attributes"; a program
+  is created with `COMMIT(*CHG)`.
+- **The server does not know the database, though it is there.**
+  PostgreSQL turns a name that is written without quotation marks into
+  lower case: `CREATE DATABASE SALES` makes the database `sales`, and the
+  profile has to say `sales`. The profile keeps upper and lower case as
+  typed.
+
 The help of the displays is found through the library list. So that it
 works from any job, `XDBPRFM` puts its library at the end of the library
 list while it runs and takes it out again when it ends; a library that is
@@ -511,6 +526,57 @@ PostgreSQL and a MySQL session end inside units of work that also change a
 local table, alone and together, and prints what COMMIT answers and which
 rows are there afterwards.
 
+## Statements a server runs only outside a transaction
+
+Under commitment control - and there is no other way to a server, see
+"First steps" - the driver has a transaction open on the server from the
+first statement of a unit of work on. PostgreSQL refuses some statements
+inside a transaction: `CREATE DATABASE`, `DROP DATABASE`, `VACUUM`,
+`CREATE INDEX CONCURRENTLY`, `REINDEX ... CONCURRENTLY`, `ALTER SYSTEM`,
+`CREATE TABLESPACE` and a few more ("... cannot run inside a transaction
+block", SQLSTATE 25001).
+
+The driver runs such a statement on its own when the unit of work has
+nothing on that connection which its COMMIT or ROLLBACK would still decide:
+no change (what counts as one is told under "COMMIT and ROLLBACK") and no
+open cursor. It ends its own, empty transaction, runs the statement, and
+begins a new transaction with the next statement. So the statement works
+as the first one after a CONNECT, a COMMIT or a ROLLBACK, and after
+statements that only read:
+
+    exec sql commit;
+    stm = 'vacuum analyze orders';
+    exec sql execute immediate :stm;
+
+- **What the statement did is final at once.** A ROLLBACK of the program
+  does not take a new database away again, and nothing of it waits for
+  the COMMIT.
+- The empty transaction is ended with a commit on the server, so a `SET`
+  of the session that the same unit of work ran before stays (`SET
+  search_path ...` and then `VACUUM` of a table found through it).
+- With changes or an open cursor in the unit of work the statement is
+  refused as before, SQLCODE -438 and SQLSTATE 25001, and the text in `XDB
+  LAST ERROR` and in the job log says what is in the way: "... the server
+  runs this statement only outside a transaction, and this unit of work has
+  changes on the connection: COMMIT or ROLLBACK first, then run it". The
+  unit of work goes on, nothing of it is lost.
+- The statement is run with EXECUTE IMMEDIATE, or prepared and executed.
+  Opened as a cursor it is no query for the server and is not run.
+- With option `savepoints` = off the refusal of the server has spoiled the
+  empty transaction and it can only be rolled back. A `SET` of the session
+  would go with it, so after a `SET` in the same unit of work the statement
+  is refused: COMMIT after the SET, then run it.
+- The driver cannot see a function that changes data and is called in a
+  plain SELECT. If the unit of work did only that before, its change is
+  committed with the empty transaction.
+- In STRSQL the same holds: `COMMIT`, then the statement.
+
+This is done for PostgreSQL. SQL Server has such statements too (`CREATE
+DATABASE`, `ALTER DATABASE`, `BACKUP`: error 226 and others); there they
+are still refused. MySQL has none: its data definition statements commit
+the transaction by themselves, with everything the unit of work did on that
+connection before.
+
 ## Copying rows to Db2: several databases in one program
 
 One program can hold connections to several servers and to the local
@@ -606,7 +672,7 @@ RST DEV('/QSYS.LIB/QGPL.LIB/XDBSRC.FILE')
 | `ile/` | ILE port layer of libpq |
 | `prf/` | WRKXDBPRF: DDS generator, RPG program, setup module, command, help panel group, option dictionary |
 | `build/` | QSH build scripts: `build_ile.sh` and `bind_ile.sh` (libpq), `build_xdb.sh` (driver), `build_prf.sh` (profiles, command, help), `dist.sh` (this package), `trial_all.sh` and `trial_upd.sh` (try a package in the build library: a first install, and an update of an installed older version); `gen_notices.py` writes the notices file from the sources of `pg/` |
-| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
+| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`) and of the statements PostgreSQL runs only outside a transaction (`alonetest_pg.sh`), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
 | `doc/` | this file and `THIRD-PARTY-NOTICES.txt` |
 
 To build in a library of your own (ILE C and ILE RPG compilers needed), from
@@ -647,7 +713,9 @@ things follow from where a package is built:
   (the name of a relational database in place of `*LOCAL` works too; no
   SQL package is needed) and use dynamic SQL (PREPARE, EXECUTE, cursors on
   prepared statements). A program created with `RDB(*NONE)` cannot connect
-  (SQL0862) - on some systems that is the default of the command.
+  (SQL0862) - on some systems that is the default of the command. One
+  created with `COMMIT(*NONE)` connects and then gets SQL5028 for every
+  statement: Db2 allows that only for Db2 for i.
   Static statements with host variables are not supported yet.
 - COMMIT and ROLLBACK cover all connections of a unit of work. A commit
   that fails on a server fails as a whole in the cases told in "COMMIT and

@@ -35,6 +35,9 @@ typedef struct
 								 * the backend has started a new one.  After
 								 * txn(XT_COMMIT): the server has answered with
 								 * an error, so it has not committed for sure */
+	int			alone;			/* the server runs this statement only outside a
+								 * transaction and has done nothing: it can be
+								 * run again when none is open */
 	char		msg[512];
 } xbe_err;
 

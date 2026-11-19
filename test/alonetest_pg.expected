@@ -1,0 +1,427 @@
+== the objects (DROP DATABASE is such a statement too)
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> X drop database if exists xdb_al_db
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop schema if exists xdb_al cascade
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop table if exists xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create schema xdb_al
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create table xdb_al.t (n int)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create table xdb_al_t (n int)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== the first statement of a unit of work, and after one that only read
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select 1 as one
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col one type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select count(*) as n from xdb_al_t
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== a database: there at once, a ROLLBACK does not take it away; the error of the second run
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> X create database xdb_al_db
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select datname from pg_database where datname = 'xdb_al_db'
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col datname type 449 len 63 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [xdb_al_db]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> Q select datname from pg_database where datname = 'xdb_al_db'
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col datname type 449 len 63 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [xdb_al_db]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X create database xdb_al_db
+ARXI0100 -> sqlcode -438 sqlstate 42P04 outlen 1 database "xdb_al_db" already exists
+  rows=0
+> Q select 2 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 2
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X drop database xdb_al_db
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select count(*) as left_over from pg_database where datname = 'xdb_al_db'
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col left_over type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== a SET of the session made before it stays
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> X set search_path to xdb_al, public
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X vacuum t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q show search_path
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col search_path type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [xdb_al, public]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> Q show search_path
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col search_path type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [xdb_al, public]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== with changes in the unit of work: refused, and the unit of work goes on
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> X insert into xdb_al_t values (1)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode -438 sqlstate 25001 outlen 1 VACUUM cannot run inside a transaction block - the server runs this st
+  rows=0
+> Q XDB LAST ERROR
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 784 
+  col SQLCODE type 497 len 4 ccsid 0
+  col SQLSTATE type 453 len 5 ccsid 280
+  col NATIVE_ERROR type 497 len 4 ccsid 0
+  col DATABASE type 449 len 10 ccsid 280
+  col RDB type 449 len 18 ccsid 280
+  col MESSAGE_TEXT type 449 len 512 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 416 
+  row: -438 [25001] 0 [pg] [ALONEPG] [VACUUM cannot run inside a transaction block - the server runs this statement only outside a transaction, and this unit of work has changes on the connection: COMMIT or ROLLBACK first, then run it]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select count(*) as n from xdb_al_t
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> Q select count(*) as n from xdb_al_t
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== with an open cursor: refused, and the cursor goes on
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> O c1 select g from generate_series(1, 3) g
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col g type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode -438 sqlstate 25001 outlen 1 VACUUM cannot run inside a transaction block - the server runs this st
+  rows=0
+> Q XDB LAST ERROR
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 784 
+  col SQLCODE type 497 len 4 ccsid 0
+  col SQLSTATE type 453 len 5 ccsid 280
+  col NATIVE_ERROR type 497 len 4 ccsid 0
+  col DATABASE type 449 len 10 ccsid 280
+  col RDB type 449 len 18 ccsid 280
+  col MESSAGE_TEXT type 449 len 512 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 416 
+  row: -438 [25001] 0 [pg] [ALONEPG] [VACUUM cannot run inside a transaction block - the server runs this statement only outside a transaction, and this unit of work has an open cursor on the connection: COMMIT or ROLLBACK first, then run it]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 23 
+  rows=3
+  row: 1
+  row: 2
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== prepared, executed twice, refused after a change, executed after the ROLLBACK
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> P s1 vacuum xdb_al_t
+ARPS0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> E s1
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> E s1
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_al_t values (5)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> E s1
+ARXP0100 -> sqlcode -438 sqlstate 25001 outlen 1 VACUUM cannot run inside a transaction block - the server runs this st
+  rows=0
+> ROLLBACK
+> E s1
+ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select count(*) as n from xdb_al_t
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== opened as a cursor: no query for the server, and it is not run
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> Q vacuum xdb_al_t
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode -104 sqlstate 42601 outlen 8 {vacuum|*N}
+> Q select 3 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 3
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== SET TRANSACTION after the first query: the same SQLSTATE, left alone
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> Q select 1 as one
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col one type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X set transaction isolation level serializable
+ARXI0100 -> sqlcode -438 sqlstate 25001 outlen 1 SET TRANSACTION ISOLATION LEVEL must be called before any query
+  rows=0
+> Q XDB LAST ERROR
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 784 
+  col SQLCODE type 497 len 4 ccsid 0
+  col SQLSTATE type 453 len 5 ccsid 280
+  col NATIVE_ERROR type 497 len 4 ccsid 0
+  col DATABASE type 449 len 10 ccsid 280
+  col RDB type 449 len 18 ccsid 280
+  col MESSAGE_TEXT type 449 len 512 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 416 
+  row: -438 [25001] 0 [pg] [ALONEPG] [SET TRANSACTION ISOLATION LEVEL must be called before any query]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 4 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 4
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== without a savepoint for each statement (option savepoints = off)
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select 1 as one
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col one type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X set search_path to xdb_al, public
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X vacuum t
+ARXI0100 -> sqlcode -438 sqlstate 25001 outlen 1 VACUUM cannot run inside a transaction block - the server runs this st
+  rows=0
+> Q XDB LAST ERROR
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 784 
+  col SQLCODE type 497 len 4 ccsid 0
+  col SQLSTATE type 453 len 5 ccsid 280
+  col NATIVE_ERROR type 497 len 4 ccsid 0
+  col DATABASE type 449 len 10 ccsid 280
+  col RDB type 449 len 18 ccsid 280
+  col MESSAGE_TEXT type 449 len 512 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 416 
+  row: -438 [25001] 0 [pg] [ALONEPN] [VACUUM cannot run inside a transaction block - the server runs this statement only outside a transaction, and this unit of work has a SET of the session on the connection: it stays only with a COMMIT, so COMMIT after the SET, then run it]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> ROLLBACK
+> X set search_path to xdb_al, public
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> COMMIT
+> X vacuum t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q show search_path
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col search_path type 449 len 1000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [xdb_al, public]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> X insert into xdb_al_t values (7)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode -438 sqlstate 25001 outlen 1 VACUUM cannot run inside a transaction block - the server runs this st
+  rows=0
+> Q select count(*) as n from xdb_al_t
+ARPD0100 -> sqlcode -438 sqlstate 25P02 outlen 0 current transaction is aborted, commands ignored until end of transact
+> ROLLBACK
+> Q select count(*) as n from xdb_al_t
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== without commitment control (the emulation can, Db2 cannot)
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_al_t values (9)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X vacuum xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> Q select count(*) as n from xdb_al_t
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X delete from xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== the objects go again
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> ISO *CHG
+> X drop table xdb_al_t
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop schema xdb_al cascade
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> COMMIT
+> Q select count(*) as left_over from pg_class where relname = 'xdb_al_t'
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col left_over type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 0
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
