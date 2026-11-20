@@ -59,6 +59,7 @@ extern int	ile_job_ccsid(void);
 #define T_GRAPHIC 468
 #define T_FLOAT 480
 #define T_DECIMAL 484
+#define DECMAX 31				/* digits of a decimal column that Db2 takes from a driver */
 #define T_ZONED 488
 #define T_BIGINT 492
 #define T_INTEGER 496
@@ -2721,12 +2722,24 @@ describe_cols(xsess *s, xstmt *t, const xbe_col *d, int n)
 				c->sqltype = T_DECIMAL;
 				if (d[i].prec > 0)
 				{
-					c->prec = d[i].prec > 63 ? 63 : d[i].prec;
+					/*
+					 * Db2 takes a packed decimal of DECMAX digits at most
+					 * from a driver: with more, the DESCRIBE and the OPEN
+					 * of the program end with SQL0804.  Servers have longer
+					 * ones, and not only in tables: the SUM of a decimal
+					 * column is numeric(38,s) on SQL Server and up to
+					 * decimal(65,s) on MySQL.  Such a column is handed over
+					 * with DECMAX digits and its scale; a value that needs
+					 * more digits before the point than that leaves does
+					 * not become another number, it is a value that cannot
+					 * be converted (put_col), of its row only.
+					 */
+					c->prec = d[i].prec > DECMAX ? DECMAX : d[i].prec;
 					c->scale = d[i].scale > c->prec ? c->prec : d[i].scale;
 				}
 				else
 				{
-					c->prec = 31;
+					c->prec = DECMAX;
 					c->scale = s->num_scale;
 				}
 				c->len = c->prec / 2 + 1;
@@ -4036,6 +4049,7 @@ do_prepare(xsess *s, const char *in, char *ca, int section, const char *pkg,
 		t->virt_done = 0;
 		t->reprep = 0;
 		t->has_fetch_err = 0;
+		t->late_cols = 0;
 	}
 	if (t == NULL || sql == NULL)
 	{

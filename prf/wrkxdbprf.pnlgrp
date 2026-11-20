@@ -403,6 +403,13 @@ Numeric scale - Help
 :P.
 The number of decimals given to numeric columns for which the server
 reports no scale. The most is 20.
+:P.
+Whatever the server reports, a decimal column arrives with 31 digits at
+most, because Db2 takes no longer one from a driver. A column with more
+digits (the SUM of a decimal column on SQL Server and MySQL is one)
+keeps its decimals and is handed over as DECIMAL(31,s). A value that
+has more digits before the point than that leaves arrives as a value
+that could not be converted, as any data mapping error does.
 :EHELP.
 :HELP NAME='XDB/PRF/TRC'.
 Trace - Help

@@ -1,0 +1,122 @@
+== PostgreSQL
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select cast(1.5 as numeric(31,10)) as n31, cast(1.5 as numeric(32,10)) as n32, cast(1.5 as numeric
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 528 
+  col n31 type 485 len 7946 ccsid 0
+  col n32 type 485 len 7946 ccsid 0
+  col n38 type 485 len 7946 ccsid 0
+  col n63 type 485 len 7946 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 288 
+  row: x'0000000000000000000015000000000F' x'0000000000000000000015000000000F' x'0000000000000000000015000000000F' x'0000000000000000000015000000000F'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select cast(12345678901234567890123456789.5 as numeric(38,2)) as fits, cast(1234567890123456789012
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col fits type 485 len 7938 ccsid 0
+  col too_long type 485 len 7938 ccsid 0
+  col after_it type 485 len 7938 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: x'1234567890123456789012345678950F' <conv-error> x'0000000000000000000000000000725D'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select cast(0.12345678901234567890123456789012345 as numeric(38,35)) as small
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col small type 485 len 7967 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: x'1234567890123456789012345678901F'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 1 as still_here
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col still_here type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== MySQL: the sum of a decimal(20,2) column is decimal(42,2)
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select sum(d) as s, max(d) as m from (select cast(1.5 as decimal(20,2)) as d union all select cast
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col s type 485 len 7938 ccsid 0
+  col m type 485 len 5122 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: x'0000000000000000000000000000375F' x'000000000000000000225F'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select cast(12345678901234567890123456789.5 as decimal(38,2)) as fits, cast(1234567890123456789012
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col fits type 485 len 7938 ccsid 0
+  col too_long type 485 len 7938 ccsid 0
+  col after_it type 485 len 7938 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: x'1234567890123456789012345678950F' <conv-error> x'0000000000000000000000000000725D'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select cast(1.5 as decimal(65,30)) as d65
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col d65 type 485 len 7966 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: x'1500000000000000000000000000000F'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 1 as still_here
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col still_here type 493 len 8 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== SQL Server (Babelfish): the sum of a numeric(15,2) column is numeric(38,2)
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select sum(d) as s, max(d) as m from (select cast(1.5 as numeric(15,2)) as d union all select cast
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col s type 485 len 7938 ccsid 0
+  col m type 485 len 3842 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: x'0000000000000000000000000000375F' x'000000000000225F'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select cast(12345678901234567890123456789.5 as numeric(38,2)) as fits, cast(1234567890123456789012
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
+  col fits type 485 len 7938 ccsid 0
+  col too_long type 485 len 7938 ccsid 0
+  col after_it type 485 len 7938 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
+  row: x'1234567890123456789012345678950F' <conv-error> x'0000000000000000000000000000725D'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select cast(0.12345678901234567890123456789012345 as numeric(38,35)) as small
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col small type 485 len 7967 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: x'1234567890123456789012345678901F'
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 1 as still_here
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col still_here type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 1
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
