@@ -4,6 +4,8 @@
 #   - the tag v<version> must exist and point to the commit named in <version>/COMMIT,
 #   - the save file must match <version>/SHA256SUMS,
 #   - the release gets one file, xdb-<version>-objects.savf.
+# A folder with a file WITHDRAWN.md is a withdrawn version: its release, if it has one, loses
+# its file, is marked "(withdrawn)" with the text of that file, and is no longer a "latest".
 # It runs when the branch receives a push and changes nothing else.
 name: Release of a package
 on:
@@ -27,6 +29,25 @@ jobs:
           cd pkg
           for d in */; do
             v=${d%/}
+            if [ -f "$v/WITHDRAWN.md" ]; then
+              if ! gh release view "v$v" > /dev/null 2>&1; then echo "v$v: withdrawn, no release"; continue; fi
+              case "$(gh release view "v$v" --json name --jq .name)" in
+                *withdrawn*) echo "v$v: marked as withdrawn already"; continue ;;
+              esac
+              {
+                echo "**Withdrawn - do not install this version.**"
+                echo
+                cat "$v/WITHDRAWN.md"
+                echo
+                echo "Use the [latest release](https://github.com/$GH_REPO/releases/latest) in its place."
+              } > ../withdrawn.md
+              for a in $(gh release view "v$v" --json assets --jq '.assets[].name'); do
+                gh release delete-asset "v$v" "$a" --yes
+              done
+              gh release edit "v$v" --title "XDBARDDRV $v (withdrawn)" --notes-file ../withdrawn.md --prerelease
+              echo "v$v: release marked as withdrawn, its file removed"
+              continue
+            fi
             f="$v/xdb-$v-objects.savf"
             if [ ! -f "$f" ] || [ ! -f "$v/SHA256SUMS" ] || [ ! -f "$v/COMMIT" ]; then continue; fi
             if gh release view "v$v" > /dev/null 2>&1; then echo "v$v: has a release"; continue; fi
@@ -49,6 +70,6 @@ jobs:
               echo
               echo "Offered as it is, without warranty of any kind (MIT licence)."
             } > ../notes.md
-            gh release create "v$v" "$f" --verify-tag --title "XDBARDDRV $v" --notes-file ../notes.md
+            gh release create "v$v" "$f" --verify-tag --latest --title "XDBARDDRV $v" --notes-file ../notes.md
             echo "v$v: release made"
           done

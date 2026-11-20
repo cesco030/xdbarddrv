@@ -1,0 +1,80 @@
+XDB package 0.9.9 2026-11-20, build library CESCO2, start Ven Nov 20 11:08:14 Coordinated Universal Time 2026
+ Coded character set ID : CCSID 1144
+clear build library CESCO2 -> OK
+mark it -> OK
+--- libpq
+modules compiled: 49, failed: 0
+CPF5D04:  Not authorized to service program QPMLPMGT in library QSYS.
+SRVPGM OK
+TESTMOD OK
+TESTPGM OK
+--- driver
+XDBARDC OK
+XDBLOB OK
+XDBPG OK
+XDBMY OK
+XDBMS OK
+XDBNET OK
+XDBTLS OK
+XDBPRFC OK
+XDB SRVPGM OK
+XDB SRVPGM adopts its owner (USRPRF *OWNER)
+XDBARDM OK
+XDBARD PGM OK
+XDBCMTM OK
+XDBCMT PGM OK
+--- profiles, setup, command, help
+QXDBSRC OK
+XDBPRF OK
+XDBPRO OK
+XDBVLDL left out: this user may not use CRTVLDL (password list and self test XDBT9 skipped)
+XDBKWD OK
+XDBKWD_DATA OK
+XDBPRFD OK
+XDBPRFC OK
+XDBSETUP_MOD OK
+XDBALW_MOD OK
+XDBPRFM_MOD OK
+XDBPRFM OK
+XDBPRFT_MOD OK
+XDBPRFT OK
+help names SAVLIB(CESCO2) in 2 commands
+WRKXDBPRFH OK
+WRKXDBPRF OK
+--- package
+driver without adoption (setup switches it on) -> OK
+XDBPRF becomes the model XDBPRFMDL -> OK
+XDBPRO becomes the model XDBPROMDL -> OK
+models are empty -> OK
+models are empty -> OK
+text of XDBPRFMDL -> OK
+text of XDBPROMDL -> OK
+no password list in the package -> OK (none was made)
+version 0.9.9 2026-11-20 -> OK
+file XDBLICENSE for the licence texts -> OK
+member LICENSE -> OK
+member NOTICES -> OK
+  XDBLICENSE members: LICENSE.MBR NOTICES.MBR 
+  XDBARD bound to:  XDB *LIBL *IMMED E7
+  XDBCMT bound to:  XDB *LIBL *IMMED E7
+  XDB bound to:  LIBPQ *LIBL *IMMED 
+public authority of the 14 objects set -> OK
+save file for the objects -> OK
+save the objects -> OK
+CPC3722:  14 objects saved from library CESCO2.
+objects save file to the IFS -> OK
+--- sources
+entries copied: 93, files:      236
+save file for the sources -> OK
+save the sources -> OK
+sources save file to the IFS -> OK
+README beside the save files: SAVLIB(CESCO2) in its 2 restore commands -> OK
+help text as a page -> OK
+--- result
+1062 Nov 20 11:09 LICENSE
+57206 Nov 20 11:09 README.md
+13838 Nov 20 11:09 THIRD-PARTY-NOTICES.txt
+62757 Nov 20 11:09 WRKXDBPRF-help.html
+7685568 Nov 20 11:09 xdb-0.9.9-objects.savf
+4114704 Nov 20 11:09 xdb-0.9.9-sources.savf
+end Ven Nov 20 11:09:25 Coordinated Universal Time 2026

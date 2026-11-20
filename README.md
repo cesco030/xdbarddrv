@@ -21,6 +21,12 @@ objects save file.
 | `LICENSE`, `THIRD-PARTY-NOTICES.txt` | licence (MIT) and the notices of the PostgreSQL code in it |
 | `dist.log`, `COMMIT`, `SHA256SUMS` | the log of the build, the commit it was built from, checksums |
 
+**Withdrawn versions.** A folder with a file `WITHDRAWN.md` is a version
+that must not be installed; the file says why. Its save files were removed
+from the folder and from its release, which stays as a notice; the sources
+are still at its tag. Withdrawn so far: 0.9.7 and 0.9.8 (every query on a
+Microsoft SQL Server fails with SQLSTATE 07008; fixed in 0.9.9).
+
 Download a save file in binary, check it with `sha256sum -c SHA256SUMS`, and
 follow the README of the folder.
 
