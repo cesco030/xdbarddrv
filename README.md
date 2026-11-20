@@ -18,6 +18,23 @@ Connection profiles (where each database is, how to sign on, how data is
 handed to Db2) are kept in native files and maintained with the command
 `WRKXDBPRF`, which is also the installer.
 
+## How it looks
+
+Everything is done on 5250 displays. These are from a package restored on
+PUB400.COM, with made-up profiles:
+
+| | |
+|---|---|
+| ![The list of connection profiles](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-list.png) | ![A connection profile](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-profile.png) |
+| The profiles, one for each database that `CONNECT TO` reaches | A profile: where the database is, and how its data is handed to Db2 |
+| ![The options of a profile, prompted with F4](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-options.png) | ![The setup display](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-setup.png) |
+| Options beyond the fields come from a dictionary, prompted with F4 | The setup: what is in order in this library and what is to do |
+
+F1 shows the help of the field, the column or the line of keys the cursor
+is in ([the help of a field](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-help.png)), and the setup shows
+every change as CL commands before it runs them
+([such a window](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-setup-commands.png)).
+
 ## What is in the package
 
 | File | Content |
@@ -718,7 +735,7 @@ RST DEV('/QSYS.LIB/QGPL.LIB/XDBSRC.FILE')
 | `prf/` | WRKXDBPRF: DDS generator, RPG program, setup module, command, help panel group, option dictionary |
 | `build/` | QSH build scripts: `build_ile.sh` and `bind_ile.sh` (libpq), `build_xdb.sh` (driver), `build_prf.sh` (profiles, command, help), `dist.sh` (this package), `trial_all.sh` and `trial_upd.sh` (try a package in the build library: a first install, and an update of an installed older version); `gen_notices.py` writes the notices file from the sources of `pg/` |
 | `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`) and of the statements PostgreSQL runs only outside a transaction (`alonetest_pg.sh`), the Linux test of option `fetch_rows` (`fetchtest.sh`), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
-| `doc/` | this file and `THIRD-PARTY-NOTICES.txt` |
+| `doc/` | this file, `THIRD-PARTY-NOTICES.txt` and, in `img/`, the pictures of the displays shown at the top of this file |
 
 To build in a library of your own (ILE C and ILE RPG compilers needed), from
 a job with that library in its library list:
