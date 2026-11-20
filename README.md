@@ -23,12 +23,11 @@ handed to Db2) are kept in native files and maintained with the command
 Everything is done on 5250 displays. These are from a package restored on
 PUB400.COM, with made-up profiles:
 
-| | |
-|---|---|
-| ![The list of connection profiles](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-list.png) | ![A connection profile](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-profile.png) |
 | The profiles, one for each database that `CONNECT TO` reaches | A profile: where the database is, and how its data is handed to Db2 |
+|:---|:---|
+| ![The list of connection profiles](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-list.png) | ![A connection profile](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-profile.png) |
+| **Options beyond the fields come from a dictionary, prompted with F4** | **The setup: what is in order in this library, and what is to do** |
 | ![The options of a profile, prompted with F4](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-options.png) | ![The setup display](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-setup.png) |
-| Options beyond the fields come from a dictionary, prompted with F4 | The setup: what is in order in this library and what is to do |
 
 F1 shows the help of the field, the column or the line of keys the cursor
 is in ([the help of a field](https://raw.githubusercontent.com/cesco030/xdbarddrv/main/doc/img/wrkxdbprf-help.png)), and the setup shows
