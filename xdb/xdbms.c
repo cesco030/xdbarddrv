@@ -83,6 +83,9 @@ typedef struct
 	size_t		pklen,
 				pkpos,
 				pkcap;
+	unsigned char *in;			/* bytes read ahead from the socket (sock_read) */
+	size_t		inlen,
+				inpos;
 	int			last;			/* current packet ends the reply */
 	unsigned char *sb;			/* scratch for one value */
 	size_t		sbcap;
@@ -160,6 +163,8 @@ typedef struct
 /* what describe() remembers of a statement, for open() */
 typedef struct
 {
+	int			ndesc;			/* columns the describe told, 0 = none or not known */
+	int			nocursor;		/* the rows are XML or JSON text: the server opens no cursor on that */
 	int			nsink;
 	int			sink[LOB_MAXSINK];
 } msstmt;
@@ -167,8 +172,10 @@ typedef struct
 typedef struct
 {
 	int			handle;			/* server cursor, 0 = rows held in inl */
-	mcol	   *cols;			/* handle = 0: the columns of the rows as they came */
+	mcol	   *cols;			/* the columns of the rows as they came */
 	int			ncols;
+	int			nvis;			/* ... of them the columns of the statement: a server
+								 * cursor adds the status of the row as a last one */
 	xbe_batch	inl;
 	int			inl_used;
 	int			nsink;			/* columns whose values go to files (PUT_xLOB_TO_FILE) */
@@ -576,17 +583,41 @@ tls_begin(msc *c, int wrapped, const char *alpn, xbe_err *e)
 	return 0;
 }
 
+/*
+ * Reads through a buffer: a reply arrives in packets of a few thousand
+ * bytes, each with a header of eight, and asking the system for the header
+ * and then for the rest of every packet is two calls for each of them.  One
+ * call brings what has arrived, up to IN_BUF bytes, and the packets are
+ * taken from there.  Nothing stays in the buffer between two requests: a
+ * reply is read to its end, and the server sends nothing unasked.
+ */
+#define IN_BUF 65536
+
 static int
 sock_read(msc *c, unsigned char *b, size_t n)
 {
 	while (n > 0)
 	{
-		int			r = c->tls_on ? xtls_read(c->tls, b, (int) n) : (int) recv(c->fd, (char *) b, n, 0);
+		size_t		k = c->inlen - c->inpos;
 
-		if (r <= 0)
-			return -1;
-		b += r;
-		n -= (size_t) r;
+		if (k == 0)
+		{
+			int			r;
+
+			if (c->in == NULL && (c->in = malloc(IN_BUF)) == NULL)
+				return -1;
+			r = c->tls_on ? xtls_read(c->tls, c->in, IN_BUF) : (int) recv(c->fd, (char *) c->in, IN_BUF, 0);
+			if (r <= 0)
+				return -1;
+			c->inpos = 0;
+			c->inlen = k = (size_t) r;
+		}
+		if (k > n)
+			k = n;
+		memcpy(b, c->in + c->inpos, k);
+		c->inpos += k;
+		b += k;
+		n -= k;
 	}
 	return 0;
 }
@@ -3010,6 +3041,7 @@ ms_disconnect(void *vc)
 	free(c->hsin);
 	free(c->ob);
 	free(c->pk);
+	free(c->in);
 	free(c->sb);
 	free(c->fbuf);
 	free(c->fbuf2);
@@ -3259,6 +3291,7 @@ ms_connect(const xbe_opts *o, xbe_err *e)
 		c->tds = 0;
 		c->version = 0;
 		c->dead = 0;
+		c->inlen = c->inpos = 0;
 		c->fd = xnet_connect(host, port, timeout, xnet_sockbuf_opt(o->conninfo), e);
 		if (c->fd < 0)
 		{
@@ -3502,44 +3535,61 @@ describe1(msc *c, const char *sql, xbe_col **cols, int *ncols, xbe_err *e)
 	}
 	if (rc < 0)
 	{
-		if (is_exec && !c->dead)
+		check_txn(c, e);
+		if (is_exec && !c->dead && !e->rolled_back)
 		{
 			/* a procedure that cannot be described can still be executed */
 			memset(e, 0, sizeof *e);
 			return 0;
 		}
-		check_txn(c, e);
 		return -1;
 	}
 	return 0;
+}
+
+/*
+ * SELECT ... FOR XML and FOR JSON return their text in rows of one column
+ * with a fixed name, the word XML or JSON and a GUID that never changes.
+ * The server opens no cursor on such a statement - and its refusal ends
+ * the transaction (seen on SQL Server 2019), so the driver does not ask:
+ * the statement is run as it is and its rows are kept here.
+ */
+static int
+xml_stream(const char *name)
+{
+	static const char guid[] = "_F52E2B61-18A1-11d1-B105-00805F49916B";
+	const char *p = strncmp(name, "XML", 3) == 0 ? name + 3 : strncmp(name, "JSON", 4) == 0 ? name + 4 : NULL;
+
+	return p != NULL && strncmp(p, guid, sizeof guid - 1) == 0;
 }
 
 static int
 ms_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, xbe_err *e)
 {
 	msc		   *c = vc;
-	msstmt	   *st = NULL;
+	msstmt	   *st = calloc(1, sizeof(msstmt));
 	int			rc;
 
 	*stmt = NULL;
-	if (c->nsink > 0)
+	if (st != NULL && c->nsink > 0)
 	{
 		/* the file columns named for this statement (and for no other): open() needs them */
-		st = calloc(1, sizeof(msstmt));
-		if (st != NULL)
-		{
-			st->nsink = c->nsink;
-			memcpy(st->sink, c->sink, sizeof(int) * (size_t) c->nsink);
-		}
-		c->nsink = 0;
-		if (st == NULL)
-			return -1;
+		st->nsink = c->nsink;
+		memcpy(st->sink, c->sink, sizeof(int) * (size_t) c->nsink);
 	}
+	c->nsink = 0;
+	if (st == NULL)
+		return -1;
 	rc = describe1(c, sql, cols, ncols, e);
 	if (rc < 0 || *ncols == 0)
 	{
 		free(st);
 		st = NULL;
+	}
+	else
+	{
+		st->ndesc = *ncols;		/* open() tells the row status column of a cursor by it */
+		st->nocursor = *ncols == 1 && xml_stream((*cols)[0].name);
 	}
 	*stmt = st;
 	return rc;
@@ -3576,6 +3626,46 @@ cols_dup(const mcol *src, int n)
 	return d;
 }
 
+/*
+ * The rows of an API server cursor have one column more than the statement:
+ * the server adds the status of each row as a last column, named ROWSTAT
+ * and of type INT4, and announces it with the cursor and with every fetch
+ * ("sent as hidden columns ... at the end of each row", sp_cursorfetch in
+ * the documentation of the server).  It is no column of the statement and
+ * must not be counted as one.  Returns 1 when the last of the n columns is
+ * that one.
+ *
+ * Not every server adds it (Babelfish does not).  So when the describe has
+ * told how many columns the statement has, the cursor must have exactly one
+ * more: a last column of that name in a cursor of as many columns as were
+ * described is the statement's own.
+ */
+static int
+rowstat_col(const mcol *cols, int n, int ndesc)
+{
+	static const char name[] = "ROWSTAT";
+	const mcol *m;
+	int			i;
+
+	if (cols == NULL || n < 2)
+		return 0;
+	if (ndesc > 0 && n != ndesc + 1)
+		return 0;
+	m = &cols[n - 1];
+	if (!(m->type == 0x38 || (m->type == 0x26 && m->maxlen == 4)))
+		return 0;				/* INT4, or INTN of four bytes */
+	for (i = 0; name[i]; i++)
+	{
+		char		ch = m->name[i];
+
+		if (ch >= 'a' && ch <= 'z')
+			ch = (char) (ch - ('a' - 'A'));
+		if (ch != name[i])
+			return 0;
+	}
+	return m->name[i] == 0;
+}
+
 static int
 ms_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		int hold, void **cur, xbe_err *e)
@@ -3594,7 +3684,7 @@ ms_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		bigtext(c, 1);
 	}
 	/* procedure calls are not opened as server cursors: run once, rows kept here */
-	if (kw(sql, "EXEC") || kw(sql, "EXECUTE"))
+	if (kw(sql, "EXEC") || kw(sql, "EXECUTE") || (st && st->nocursor))
 		goto direct;
 	rpc_begin(c, "sp_cursoropen");
 	rpc_int(c, 0, 1, 1);		/* @cursor OUTPUT */
@@ -3617,16 +3707,35 @@ ms_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		k->handle = c->rv[0];
 		k->cols = cols_dup(c->cols, c->ncols);
 		k->ncols = c->ncols;
+		k->nvis = k->ncols - rowstat_col(c->cols, c->ncols, st ? st->ndesc : 0);
 		*cur = k;
 		return 0;
 	}
-	if (rc < 0 && (c->dead || e->native < 16900 || e->native > 16999))
+	if (rc < 0)
 	{
-		if (k->nsink > 0)
-			bigtext(c, 0);
-		free(k);
+		/*
+		 * The errors 16900 to 16999 are those of the cursor procedures: the
+		 * server opens no cursor on this statement.  6819 says the same of a
+		 * FOR XML clause that the describe did not show, 8654 of a statement
+		 * with a text pointer.  (jTDS re-executes after the same errors.)
+		 * Any other error is the statement's own.
+		 */
+		int			refused = !c->dead && ((e->native >= 16900 && e->native <= 16999) ||
+										   e->native == 6819 || e->native == 8654);
+
+		/*
+		 * A refusal can end the transaction as an error of the statement
+		 * can (6819 does on SQL Server 2019): then nothing is run again,
+		 * the program is told that its unit of work was rolled back.
+		 */
 		check_txn(c, e);
-		return -1;
+		if (!refused || e->rolled_back)
+		{
+			if (k->nsink > 0)
+				bigtext(c, 0);
+			free(k);
+			return -1;
+		}
 	}
 	/* no server cursor for this statement: run it and keep the rows here */
 direct:
@@ -3669,6 +3778,7 @@ direct:
 	/* the columns the rows really have: ms_cursor_cols tells them */
 	k->cols = c->cols0;
 	k->ncols = c->ncols0;
+	k->nvis = k->ncols;
 	c->cols0 = NULL;
 	c->ncols0 = 0;
 	*cur = k;
@@ -3677,7 +3787,8 @@ direct:
 
 /*
  * The columns of the rows of an open cursor, as the server sent them with
- * the cursor or with the rows.  The describe has its columns from
+ * the cursor or with the rows - without the row status column of a server
+ * cursor (rowstat_col).  The describe has its columns from
  * sp_prepare or SET FMTONLY, which run nothing: a procedure they cannot
  * follow (one that works with temporary tables, for one) is described with
  * no columns, and a procedure with more than one way through it can return
@@ -3691,17 +3802,17 @@ ms_cursor_cols(void *vc, void *cur, xbe_col **cols, int *ncols, xbe_err *e)
 
 	*cols = NULL;
 	*ncols = 0;
-	if (k == NULL || k->cols == NULL || k->ncols <= 0)
+	if (k == NULL || k->cols == NULL || k->nvis <= 0)
 		return 0;
-	*cols = calloc((size_t) k->ncols, sizeof(xbe_col));
+	*cols = calloc((size_t) k->nvis, sizeof(xbe_col));
 	if (*cols == NULL)
 	{
 		xnet_err(e, "57011", "not enough memory for the columns of the statement");
 		return -1;
 	}
-	for (i = 0; i < k->ncols; i++)
+	for (i = 0; i < k->nvis; i++)
 		col_kind(&k->cols[i], &(*cols)[i]);
-	*ncols = k->ncols;
+	*ncols = k->nvis;
 	return 0;
 }
 
@@ -3744,6 +3855,13 @@ ms_fetch(void *vc, void *cur, int maxrows, xbe_batch *b, xbe_err *e)
 	{
 		c->nrsink = 0;
 		batch_release(b);
+		/*
+		 * An error that ends the batch (a value that cannot be converted,
+		 * for one) also rolls the transaction back on the server.  Seen
+		 * here or never: the next statement would run outside of any
+		 * transaction and stay whatever the program does afterwards.
+		 */
+		check_txn(c, e);
 		return -1;
 	}
 	c->nrsink = 0;

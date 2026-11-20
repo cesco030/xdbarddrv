@@ -11,6 +11,11 @@ from the CREATE TABLE statements seen on the connection (by column name),
 NOT NULL / PRIMARY KEY columns use the fixed-length TDS types as the real
 server does.
 
+The rows of a server cursor carry one column more than the statement has,
+as with the real server: its last column ROWSTAT (INT4, 1 = the row was
+fetched), announced with the cursor and again with every fetch.  A client
+has to leave it out of what it hands on.
+
 Parameters of the types image and ntext (a file sent by the driver's
 GET_BLOB_FROM_FILE / GET_CLOB_FROM_FILE at TDS 7.1) are stored as blob and
 text; xdb_md5(value) gives the MD5 of what arrived.  The mock answers as
@@ -36,6 +41,8 @@ import uuid
 
 COLL = bytes([0x09, 0x04, 0xD0, 0x00, 0x34])    # SQL_Latin1_General_CP1_CI_AS
 TYPES = {}                                       # column name -> (kind, a, b, notnull)
+# the row status column of a server cursor: user type 0, flags 0, INT4, its name
+ROWSTAT = struct.pack('<HHB', 0, 0, 0x38) + bytes([7]) + 'ROWSTAT'.encode('utf-16-le')
 
 
 def us(s):
@@ -308,11 +315,13 @@ class Conn:
         rows = cur.fetchall()
         return [d[0] for d in cur.description], rows, len(rows)
 
-    def resultset(self, names, rows, with_rows=True):
+    def resultset(self, names, rows, with_rows=True, rowstat=False):
         types = [col_type(n, [r[i] for r in rows]) for i, n in enumerate(names)]
-        out = struct.pack('<BH', 0x81, len(names))
+        out = struct.pack('<BH', 0x81, len(names) + (1 if rowstat else 0))
         for n, t in zip(names, types):
             out += struct.pack('<HH', 0, 0x0009 if not t[3] else 0x0008) + typeinfo(t) + bv(n)
+        if rowstat:
+            out += ROWSTAT
         if with_rows:
             for r in rows:
                 out += b'\xd1' + b''.join(value(t, v) for t, v in zip(types, r))
@@ -520,7 +529,7 @@ class Conn:
                     raise TdsError(16945, 16, 'The cursor was not declared.')
                 self.nextcur += 1
                 self.cursors[self.nextcur] = [names, rows, 0]
-                out += self.resultset(names, rows, with_rows=False) + done(0xFF, 0x11, 0)
+                out += self.resultset(names, rows, with_rows=False, rowstat=True) + done(0xFF, 0x11, 0)
                 rv = [self.nextcur, vals[2], vals[3], -1]
             elif name == 'sp_cursorfetch':
                 c = self.cursors.get(vals[0])
@@ -530,11 +539,12 @@ class Conn:
                 types_from = c[1]
                 names = c[0]
                 types = [col_type(n, [r[i] for r in types_from]) for i, n in enumerate(names)]
-                out += struct.pack('<BH', 0x81, len(names))
+                out += struct.pack('<BH', 0x81, len(names) + 1)
                 for n, t in zip(names, types):
                     out += struct.pack('<HH', 0, 9) + typeinfo(t) + bv(n)
+                out += ROWSTAT
                 for r in part:
-                    out += b'\xd1' + b''.join(value(t, v) for t, v in zip(types, r))
+                    out += b'\xd1' + b''.join(value(t, v) for t, v in zip(types, r)) + struct.pack('<i', 1)
                 c[2] += len(part)
                 out += done(0xFF, 0x11, len(part))
             elif name == 'sp_cursorclose':

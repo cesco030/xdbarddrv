@@ -445,6 +445,177 @@ ARFC0100 -> sqlcode 100 sqlstate 02000
 ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== the mock: the same in one slot, and the statement that follows in it
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> R values (1, 'a'), (2, 'b') /*nocursor*/
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  the open tells 2 columns:
+  col column1 type 497 len 4 ccsid 0
+  col column2 type 449 len 4000 ccsid 280
+  row: 1 [a]
+  row: 2 [b]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=2 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> R select 10 as in_slot
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_slot type 449 len 4000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [10]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PROCM0: the row status column of a server cursor, and a column of the statement with that name
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select 8 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 449 len 4000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [8]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 1 as a, 2 as rowstat
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col a type 449 len 4000 ccsid 280
+  col rowstat type 449 len 4000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: [1] [2]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c1 select 3 as a, 4 as rowstat
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col a type 449 len 4000 ccsid 280
+  col rowstat type 449 len 4000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+  rows=1
+  row: [3] [4]
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> A c1
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 16 
+  rows=1
+  row: [3] [4]
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 9 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 449 len 4000 ccsid 280
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: [9]
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PROCMS: the row status column of a server cursor, and a column of the statement with that name
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select 8 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 8
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 1 as a, 2 as rowstat
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col a type 497 len 4 ccsid 0
+  col rowstat type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 1 2
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c1 select 3 as a, 4 as rowstat
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col a type 497 len 4 ccsid 0
+  col rowstat type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 18 
+  rows=1
+  row: 3 4
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> A c1
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 18 
+  rows=1
+  row: 3 4
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 9 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 9
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== PROCM1: the row status column of a server cursor, and a column of the statement with that name
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> Q select 8 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 8
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 1 as a, 2 as rowstat
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col a type 497 len 4 ccsid 0
+  col rowstat type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+  row: 1 2
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> O c1 select 3 as a, 4 as rowstat
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272 
+  col a type 497 len 4 ccsid 0
+  col rowstat type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 18 
+  rows=1
+  row: 3 4
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> A c1
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
+> F c1
+ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 18 
+  rows=1
+  row: 3 4
+> K c1
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> Q select 9 as in_step
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col in_step type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 9
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
 == tidy
 > C
 ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 

@@ -16,7 +16,9 @@
 #     the other: SQLSTATE 07008 in place of rows that are not what was described;
 #   - a value that comes back: in one batch with the call it goes into a temporary table;
 #   - with the mock: a statement that is described with no columns and returns rows when it
-#     runs gets its columns with the open ("the open tells n columns").
+#     runs gets its columns with the open ("the open tells n columns");
+#   - the row status column that a server cursor adds to its rows (mock: as the real server;
+#     Babelfish: none) is not a column of the statement, on every server.
 # After each case the connection answers the next statement.
 # Work files: /tmp/xdb_procs.  XDB_PROCT_TRACE=Y writes the traces to /tmp/xdb_PROCMS.log ...
 E=$1
@@ -110,6 +112,36 @@ Q values (1, 'a'), (2, 'b') /*nocursor*/
 Q select 7 as in_step
 D
 EOF2
+
+# The same in one statement slot, as interactive SQL does it: the statement that follows in
+# the slot is described at its PREPARE like any other (once the columns of the open stayed
+# switched on for the slot, and the next statement was described a second time at its open).
+run PROCM0 "the mock: the same in one slot, and the statement that follows in it" <<'EOF2'
+C
+R values (1, 'a'), (2, 'b') /*nocursor*/
+R select 10 as in_slot
+D
+EOF2
+
+# A server cursor of SQL Server gives every row one column more than the statement has: the
+# status of the row, a last column named ROWSTAT.  The mock sends it as the real server does,
+# Babelfish does not.  It is no column of the statement; a last column of that name that the
+# statement itself has stays.
+for R in PROCM0 PROCMS PROCM1; do
+run $R "$R: the row status column of a server cursor, and a column of the statement with that name" <<'EOF2'
+C
+Q select 8 as in_step
+Q select 1 as a, 2 as rowstat
+O c1 select 3 as a, 4 as rowstat
+F c1
+K c1
+A c1
+F c1
+K c1
+Q select 9 as in_step
+D
+EOF2
+done
 
 run PROCMS "tidy" <<'EOF2'
 C
