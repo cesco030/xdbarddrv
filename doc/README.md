@@ -20,8 +20,8 @@ handed to Db2) are kept in native files and maintained with the command
 
 ## How it looks
 
-Everything is done on 5250 displays. These are from a package restored on
-PUB400.COM, with made-up profiles:
+Everything is done on 5250 displays. These were taken on PUB400.COM, in the
+library a package had just been built in, with made-up profiles:
 
 | The profiles, one for each database that `CONNECT TO` reaches | A profile: where the database is, and how its data is handed to Db2 |
 |:---|:---|
