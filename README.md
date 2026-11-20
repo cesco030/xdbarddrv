@@ -94,6 +94,10 @@ profile CESCO. Nothing in them comes from another place.
   README, the help of the command as a page, the licence texts, the log of
   the build (`dist.log`) and `SHA256SUMS`.
 
+**Versions 0.9.7 and 0.9.8 were withdrawn**: with them every query on a
+Microsoft SQL Server fails (SQLSTATE 07008). Their save files were taken
+off the Releases page and out of the branch; 0.9.9 replaces them.
+
 Two things in this README follow from that: the restore commands name
 `SAVLIB(CESCO2)`, and after the first restore the setup has the line
 *Objects have an owner of this system* to do (see "Installing").
@@ -767,6 +771,74 @@ things follow from where a package is built:
   at once when the two do not fit; `export LANG=/QSYS.LIB/<name>.LOCALE`
   with a locale of the CCSID of the job, before the script is started, puts
   that right.
+
+## What each kind of server supports
+
+What follows is what the driver does today on IBM i, for each kind of
+server. "Tried" means that it ran from an IBM i against a server of that
+version; everything else ran only on Linux test servers or not at all.
+
+### Signing on, encryption, versions
+
+| | PostgreSQL | MySQL / MariaDB | Microsoft SQL Server |
+|---|---|---|---|
+| Tried from IBM i | 9.6, 14, 19 | MySQL 8.4 | SQL Server 2019 |
+| Tried on Linux only | 16 | MySQL 8.0 | Babelfish for PostgreSQL (speaks the protocol of SQL Server at the levels of 2000 and of 2012 and later) |
+| Not tried | versions before 9.6 | MariaDB, MySQL 5.x, Aurora | SQL Server 2000 to 2017, 2022, 2025, Azure SQL |
+| Sign-on that works | user and password, with the methods `scram-sha-256`, `md5` and `password` of `pg_hba.conf`; `trust` | user and password, with the plugins `mysql_native_password` and `caching_sha2_password` | a SQL Server login (user and password) |
+| Sign-on that does not | Kerberos / GSSAPI, SSPI, client certificates, OAuth | `sha256_password`, `ed25519` of MariaDB, Kerberos, LDAP / PAM plugins that want the password in clear, the RSA exchange of `caching_sha2_password` (the first login of a user after a server start then needs an encrypted connection) | Windows logins (NTLM, Kerberos), Microsoft Entra ID |
+| Encryption | **none**: the PostgreSQL client library of the package is built without TLS. Encryption *OFF or *PREFER; with *REQUIRE or *VERIFY the connection fails. A server that only takes encrypted connections (`hostssl`, most cloud services) cannot be reached | TLS of the system (GSKit): *PREFER, *REQUIRE, and *VERIFY against the certificate store *SYSTEM | **SQL Server 2019 and older: none**, and the password of the login travels only scrambled, not encrypted. SQL Server 2022 and later: `encrypt` = strict (TDS 8.0), not tried. A server that forces encryption at the older protocol refuses the connection |
+| Also not there | COPY from or to the program, LISTEN / NOTIFY | LOAD DATA LOCAL; a statement of 16 MB or more | named instances (give the port), failover partner, redirection by an Azure gateway, results with COMPUTE BY |
+
+No statement has a timeout of its own and none can be cancelled: a
+statement that waits for a lock on the server waits as long as the lock is
+held. On SQL Server and MySQL option `init_sql` can set a limit for the
+session (`SET LOCK_TIMEOUT 60000`, `SET SESSION innodb_lock_wait_timeout =
+60`); on PostgreSQL option `options` can (`-c lock_timeout=60000`).
+
+### Data types: what a column arrives as
+
+Every column is nullable. A type that is not in the table arrives as text
+in a VARCHAR of the text length of the profile.
+
+| Db2 type the program sees | PostgreSQL | MySQL / MariaDB | SQL Server |
+|---|---|---|---|
+| SMALLINT | `smallint`; `boolean` as 0 / 1 | `tinyint`, `smallint`, `year` | `tinyint`, `smallint`; `bit` as 0 / 1 |
+| INTEGER | `integer`, `oid` | `mediumint`, `int`; `smallint unsigned` | `int` |
+| BIGINT | `bigint` | `bigint`, `bit`; `int unsigned` | `bigint` |
+| DECIMAL(p,s), 31 digits at most (see "Limits") | `numeric(p,s)`; `numeric` without a precision as DECIMAL(31, numeric scale of the profile) | `decimal(p,s)`; `bigint unsigned` as DECIMAL(20,0) | `decimal`, `numeric`; `money` as DECIMAL(19,4), `smallmoney` as DECIMAL(10,4) |
+| DOUBLE | `real`, `double precision` | `float`, `double` | `real`, `float` |
+| DATE | `date` | `date` | `date` |
+| TIME (seconds: a fraction is left off) | `time` | `time` | `time` |
+| TIMESTAMP (microseconds) | `timestamp`, `timestamptz` | `datetime`, `timestamp` | `datetime`, `smalldatetime`, `datetime2` (a seventh digit is left off) |
+| CHAR(n) | `char(n)`; `uuid` as CHAR(36) | `char(n)` | `char(n)`, `nchar(n)`; `uniqueidentifier` as CHAR(36) |
+| VARCHAR(n) | `varchar(n)`; `name` | `varchar(n)`, `enum`, `set` | `varchar(n)`, `nvarchar(n)`; `datetimeoffset` as text |
+| VARCHAR of the text length of the profile (1000 unless changed, 32000 at most; longer values are cut) | `text`, `json`, `jsonb`, `xml`, arrays, `interval`, network and geometric types, ranges, enums | `text` of every size, `json` | `varchar(max)`, `nvarchar(max)`, `text`, `ntext`, `xml`, `sql_variant` |
+| VARCHAR with two hexadecimal digits for every byte | `bytea` (in the text form of the server, `\x...`) | `binary`, `varbinary`, `blob` of every size | `binary`, `varbinary`, `varbinary(max)`, `image`, `timestamp` / `rowversion`, CLR types such as `hierarchyid` and `geography` |
+
+Whole long values, text or bytes, travel through stream files with the
+file functions (see "Large values"); no column arrives as a BLOB, CLOB or
+DBCLOB, and Db2 XML, DECFLOAT, BINARY and array types are not used.
+
+### Values a program passes (parameter markers)
+
+Character, numeric, date, time and timestamp host variables. A numeric
+host variable is passed as a number, a date or timestamp as one; on SQL
+Server a character value goes as `varchar` when every character of it is
+in the code page of the server and as `nvarchar` otherwise (option
+`string_params`). LOB and file reference variables cannot be passed.
+
+### Statements
+
+| | PostgreSQL | MySQL / MariaDB | SQL Server |
+|---|---|---|---|
+| Several open cursors and other statements on one connection | yes (cursors of the server) | yes (prepared statements with cursors) | yes (API cursors); a statement the server opens no cursor on is read whole into memory |
+| The rows of a procedure | through a cursor the procedure opens, or a function that returns rows | a cursor on `CALL` (the first result set) | a cursor on `EXEC` (the first result set) |
+| OUT parameters of a procedure | a row of the `CALL` | through a variable of the session | through a temporary table |
+| Rows from a statement that changes data | `RETURNING` | - | `OUTPUT` |
+| A savepoint for every statement, so that a failed one does not end the transaction | yes (option `savepoints`) | not needed | not needed; an error that ends the batch on the server (a conversion error, a deadlock) rolls the whole unit of work back, and the program is told so (SQLCODE -911) |
+| Statements the server runs only outside a transaction (`CREATE DATABASE`, `VACUUM`) | run alone when the unit of work is still empty | - | not yet: error 226 |
+| File functions (`GET_BLOB_FROM_FILE` and the others) | yes | yes | yes |
 
 ## Limits
 
