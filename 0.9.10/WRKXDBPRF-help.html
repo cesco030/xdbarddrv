@@ -1,0 +1,945 @@
+
+  <!doctype html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+  <html>
+<head><META http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Work with XDB Profiles  (WRKXDBPRF)</title>
+</head>
+<body bgcolor="white">
+<a name="WRKXDBPRF.Top_Of_Page"></a>
+<h2>Work with XDB Profiles  (WRKXDBPRF)</h2>
+<table width="100%">
+<tr>
+<td align="left" valign="top"><b>Where allowed to run:  </b>All environments (*ALL)<br>
+<b>Threadsafe:  </b>No
+</td>
+<td align="right" valign="top">
+<a href="#WRKXDBPRF.PARAMETERS.TABLE">Parameters</a><br>
+<a href="#WRKXDBPRF.COMMAND.EXAMPLES">Examples</a><br>
+<a href="#WRKXDBPRF.ERROR.MESSAGES">Error messages</a></td>
+</tr>
+</table>
+
+<div> <a name="WRKXDBPRF"></a>
+<p>The Work with XDB Profiles (WRKXDBPRF) command shows the connection profiles of XDBARDDRV and lets you add, change, copy, delete and test them.
+</p>
+<p>XDBARDDRV lets SQL on this system work with databases that are not Db2. After CONNECT TO with the name of a profile, the SQL statements of interactive SQL or of a program run on a PostgreSQL, MySQL or Microsoft SQL Server database. The driver is native ILE code and runs inside the job that connects. XDBARDDRV is the name of the software; its objects carry the short prefix XDB.
+</p>
+<p>A profile belongs to one relational database (RDB) name. It tells the driver where the database is, how to sign on, and how the data is to be given to Db2. The profiles are kept in files XDBPRF and XDBPRO and the passwords in validation list XDBVLDL. All three are in the library of the driver, which is shown at the top of the list.
+</p>
+<p>The command has no parameters. It shows the list of the profiles.
+</p>
+<p>The command is also the installer. After the objects of XDBARDDRV were restored into a library, F9 on the list shows the Setup display, which checks the installation in that library and does what is still to do.  When the profile files are not there yet, the Setup display comes first.
+</p>
+<p><b>Restrictions:</b>
+</p>
+<ul>
+<li>To add, change or delete profiles you need *CHANGE authority to files XDBPRF and XDBPRO.
+</li>
+<li>To store or remove a password you need *CHANGE authority to validation list XDBVLDL.
+</li>
+<li>Passwords can only be stored when system value QRETSVRSEC (retain server security data) is 1.
+</li>
+<li>Option 8 runs the Add RDB Directory Entry (ADDRDBDIRE) command and needs the authority that command asks for.
+</li>
+<li>A change takes effect at the next CONNECT. A connection that is open keeps the settings it started with.
+</li>
+<li>The Setup display can be looked at by everybody. Its steps for the owner profile need *SECADM and *ALLOBJ special authority; the other steps need the authority to change the objects of the library.
+</li>
+</ul>
+<p><b>Help on the displays:</b> On every display of the command, F1 shows the help for the field or the part of the display the cursor is in, and F2 in the help shows the help of the whole display.
+</p>
+<p><b>Topics of this help:</b>
+</p>
+<ul>
+<li>The list of profiles and its options
+</li>
+<li>The fields of a profile
+</li>
+<li>The password
+</li>
+<li>The options of a profile and their keywords
+</li>
+<li>The RDB directory entry
+</li>
+<li>The connection test
+</li>
+<li>Using a profile from SQL and from a program
+</li>
+<li>Setup: installing, moving and checking
+</li>
+<li>When something does not work
+</li>
+<li>Licence
+</li>
+</ul>
+<h3>The list of profiles and its options</h3>
+<p>The list shows one line for each profile: the RDB name, the database type (PG, MYSQL or MSSQL), the host, the database and the status (A active, D disabled).
+</p>
+<h5>Position to</h5>
+<p>Type the first characters of an RDB name and press Enter. The list starts at the first profile from that name on. Blank it out, or press F5, to see all profiles again.
+</p>
+<h5>Options of the list</h5>
+<p>Type an option next to one or more profiles and press Enter.
+</p>
+<dl>
+<dt><b>2=Change</b></dt>
+<dd>Change the fields of the profile. The RDB name cannot be changed; use 3=Copy and then delete the old profile.
+</dd>
+<dt><b>3=Copy</b></dt>
+<dd>Add a profile with the same values under another RDB name. The options of the profile are copied too. The password is not copied; set it with F10 on the new profile.
+</dd>
+<dt><b>4=Delete</b></dt>
+<dd>Delete the profile after a confirmation. Its options and its stored password are deleted with it. The RDB directory entry is not touched; remove it with the Work with RDB Directory Entries (WRKRDBDIRE) command when it is no longer wanted.
+</dd>
+<dt><b>5=Display</b></dt>
+<dd>Show the profile without changing it. The password is never shown, only whether one is stored.
+</dd>
+<dt><b>7=Options</b></dt>
+<dd>Work with the options of the profile: settings beyond the fields of the profile, most of them particular to one database type.
+</dd>
+<dt><b>8=RDB entry</b></dt>
+<dd>Add the RDB directory entry of the same name, which makes CONNECT TO call the driver.
+</dd>
+<dt><b>9=Test</b></dt>
+<dd>Connect to the database with the values of the profile and show the result.
+</dd>
+</dl>
+<h5>Function keys</h5>
+<dl>
+<dt><b>F1=Help</b></dt>
+<dd>Show the help for the place the cursor is in. F2 in the help shows the help of the whole display.
+</dd>
+<dt><b>F3=Exit</b></dt>
+<dd>End the command.
+</dd>
+<dt><b>F5=Refresh</b></dt>
+<dd>Read the profiles again and show all of them.
+</dd>
+<dt><b>F6=Add</b></dt>
+<dd>Add a profile.
+</dd>
+<dt><b>F9=Setup</b></dt>
+<dd>Show the Setup display with the checks of the installation in this library. A message on the list tells when the setup has something to do.
+</dd>
+<dt><b>F12=Cancel</b></dt>
+<dd>Go back to the previous display.
+</dd>
+</dl>
+<h3>The fields of a profile</h3>
+<p>The display is used to add a profile (F6 on the list), to change or copy one (options 2 and 3) and to show one (option 5, where nothing can be typed). Enter checks all fields and saves the profile; a field that is not accepted is shown in reverse image, with the reason on the message line.
+</p>
+<p>F4 shows the values that can be chosen when the cursor is in Database type, Status, Encryption or Trace.
+</p>
+<h5>RDB name</h5>
+<p>The name used in CONNECT TO, up to 18 characters. It is also the name of the RDB directory entry (see option 8). It is typed when the profile is added and cannot be changed afterwards.
+</p>
+<h5>Description</h5>
+<p>A text for the list of your databases. It has no effect.
+</p>
+<h5>Database type</h5>
+<p>PG for PostgreSQL, MYSQL for MySQL and compatible servers, MSSQL for Microsoft SQL Server.
+</p>
+<h5>Status</h5>
+<p>A is active. D is disabled: CONNECT TO is refused with SQLCODE -30061 until the profile is set to A again. Use D to close a database for a while without losing the profile.
+</p>
+<h5>Host</h5>
+<p>The host name or the IP address of the database server, without blanks. A long name continues on the second line; fill the first line before the second.
+</p>
+<h5>Port</h5>
+<p>The TCP port of the server. 0 means the usual port of the database type: 5432 for PostgreSQL, 3306 for MySQL, 1433 for SQL Server.
+</p>
+<h5>Database</h5>
+<p>The database on the server. Upper and lower case are kept as typed, and most servers tell them apart.
+</p>
+<p>PostgreSQL: a name that was written without quotation marks when the database was created is in lower case on the server (CREATE DATABASE SALES makes sales). Left empty, the server is asked for a database with the name of the user.
+</p>
+<h5>User</h5>
+<p>The user for the sign-on to the database server. It is a user of that server, not a user profile of this system. Upper and lower case are kept as typed. CONNECT TO name USER x USING y replaces the user and the password of the profile for that connection. The system hands the driver ten characters of each at most, so a longer user or password has to be stored in the profile.
+</p>
+<h5>Password</h5>
+<p>Shows whether a password is stored. F10 sets or removes it; see the topic about the password.
+</p>
+<h5>Encryption (TLS)</h5>
+<p>Whether the connection to the database server is encrypted:
+</p>
+<dl>
+<dt><b>*OFF</b></dt>
+<dd>The connection is not encrypted.
+</dd>
+<dt><b>*PREFER</b></dt>
+<dd>Encrypted when the server offers it, otherwise not.
+</dd>
+<dt><b>*REQUIRE</b></dt>
+<dd>Encrypted, or the connection fails. The certificate of the server is not checked.
+</dd>
+<dt><b>*VERIFY</b></dt>
+<dd>Encrypted, and the certificate of the server is checked. The connection fails when the certificate was not issued by an authority the certificate store *SYSTEM trusts. The name the certificate was issued for is not compared with the host name of the profile.
+</dd>
+</dl>
+<p>MySQL 8.0 and later: a login made with caching_sha2_password (what these servers make unless told otherwise; MySQL 9 has no mysql_native_password any more) signs on the first time after a start of the server only on an encrypted connection, and a sha256_password login every time. Give such a server *PREFER or *REQUIRE. With *OFF the connection can fail with SQLSTATE 28000 and a message that names the plugin and asks for TLS.
+</p>
+<p>An option of the profile can replace this field with the exact mode of the database client (sslmode, tls, encrypt).
+</p>
+<h5>Connect timeout</h5>
+<p>Seconds to wait for the server when the connection is opened. 0 means 10. The time covers the whole sign-on, the encryption handshake included: a server that takes the connection and then does not answer ends the CONNECT with SQLCODE -30080 after that time. Once the connection is made nothing has a time limit.
+</p>
+<h5>Allowed users</h5>
+<p>Who may connect with this profile. *ALL, the value of a new profile, lets every user of this system connect. Instead of *ALL, up to three user profiles or group profiles of this system can be named. A job can then connect only when the user it runs under is one of them, or has one of them as its group profile or as one of its supplemental groups. The names must exist when they are typed; upper and lower case make no difference.
+</p>
+<p>The driver checks the list on every CONNECT, also when the statement gives USER and USING. Special authorities do not count: a user with *ALLOBJ who is not in the list is refused as well, and so is option 9 of this command when it is run by such a user. A refused CONNECT ends with SQLCODE -30082 and SQLSTATE 28000, and message CPF9897 in the job log names the user and the profile.
+</p>
+<p>The list is kept as option allowed_users of the profile. A list of more than three names is kept there, with option 7; this display then shows the first three names and does not change the list.  Whoever may change file XDBPRO of the library may change the list.  The file has public authority *USE: every job can read the profiles, only the owner of the file and users with *ALLOBJ can change them.
+</p>
+<h5>Column CCSID</h5>
+<p>The CCSID in which character data is given to Db2. 0 means the CCSID of the job, which is the usual choice. 65535 is not allowed.  Characters that this CCSID does not have arrive as a substitution character; no error is reported for them.
+</p>
+<p>1208 (UTF-8) loses no character. A column is then as long in bytes as its longest value can be, three or four bytes for each character of the column of the server: nvarchar(50) arrives as VARCHAR(150). A job whose CCSID has double-byte characters should use 1208.
+</p>
+<p>Db2 takes a row of 32 K at the most from a driver (SQL0809 for a query whose columns add up to more). The columns get that room only while the row keeps within the limit. In a query where it would not, every column is as long as its number of characters, and a value whose UTF-8 bytes are more is cut: cast such a column to a longer one in the query, CAST(col AS CHAR(n)).
+</p>
+<h5>Text col. length</h5>
+<p>The length given to character columns for which the server reports no length, such as text in PostgreSQL or varchar(max) in SQL Server.  0 means 1000; the most is 32000. A longer value is cut at this length without a warning.
+</p>
+<h5>Numeric scale</h5>
+<p>The number of decimals given to numeric columns for which the server reports no scale. The most is 20.
+</p>
+<p>Whatever the server reports, a decimal column arrives with 31 digits at most, because Db2 takes no longer one from a driver. A column with more digits (the SUM of a decimal column on SQL Server and MySQL is one) keeps its decimals and is handed over as DECIMAL(31,s). A value that has more digits before the point than that leaves arrives as a value that could not be converted, as any data mapping error does.
+</p>
+<h5>Trace</h5>
+<p>Y writes every request of the connections of this profile to stream file /tmp/xdb_name.log, where name is the RDB name. The file grows and holds the text of the SQL statements, so set the trace back to N when the problem is found.
+</p>
+<h5>Last change</h5>
+<p>When the profile was last changed and by whom.
+</p>
+<h5>Function keys</h5>
+<dl>
+<dt><b>F1=Help</b></dt>
+<dd>Show the help for the place the cursor is in. F2 in the help shows the help of the whole display.
+</dd>
+<dt><b>Enter</b></dt>
+<dd>Check and save the profile.
+</dd>
+<dt><b>F3=Exit</b></dt>
+<dd>Go back to the list without saving.
+</dd>
+<dt><b>F4=Prompt</b></dt>
+<dd>Show the values of the field the cursor is in.
+</dd>
+<dt><b>F10=Password</b></dt>
+<dd>Set or remove the password. A new profile must be saved with Enter first.
+</dd>
+<dt><b>F12=Cancel</b></dt>
+<dd>Go back without saving.
+</dd>
+</dl>
+<h3>The password</h3>
+<p>F10 on a profile opens the password window. Type the new password and type it again on the repeat line; it is not shown. A password longer than 60 characters continues on the second line (characters 61 to 120). Upper and lower case are kept as typed. Enter stores it.  F10 in the window removes the stored password. F12 leaves it as it is.
+</p>
+<p>The password is stored encrypted in validation list XDBVLDL, which is created with public authority *EXCLUDE. It is not in a file, is never shown, and cannot be read with a query. The driver reads it with the authority of its owner when a connection is opened and keeps it in the memory of the job while the connection is open, to open the connection again when the server has dropped it.
+</p>
+<p>A profile can do without a stored password:
+</p>
+<ul>
+<li>The program gives it on the connect: CONNECT TO name USER x USING y.
+</li>
+<li>Option passfile names a stream file with lines of the form host:port:database:user:password.
+</li>
+</ul>
+<h3>The options of a profile</h3>
+<p>Option 7 on the list shows the options of one profile. An option is a keyword with a value. Column K tells its kind: C is a keyword handed to the database client when the connection is opened, D is a setting of the driver itself. A profile needs no options; add one only to change a behaviour.
+</p>
+<p>F6 adds an option. F4 on the keyword shows the keywords that exist for the database type of the profile, with a description. F4 on the value shows the values a keyword accepts, when it has a fixed set.  2=Change changes the value, 4=Delete removes the option.
+</p>
+<h5>The list of options</h5>
+<p>One line for each option of the profile: the keyword, its kind in column K and its value. Type 2 next to an option to change its value, or 4 to delete it after a confirmation, and press Enter. F6 adds an option. A long value is shown cut in the list; option 2 shows it whole.
+</p>
+<p>The keywords that exist, and what each of them does, are listed further on in this help (F2).
+</p>
+<h5>Function keys</h5>
+<dl>
+<dt><b>F1=Help</b></dt>
+<dd>Show the help for the place the cursor is in. F2 in the help shows the help of the whole display.
+</dd>
+<dt><b>F3=Exit</b></dt>
+<dd>Go back to the list of profiles.
+</dd>
+<dt><b>F6=Add</b></dt>
+<dd>Add an option to the profile.
+</dd>
+<dt><b>F12=Cancel</b></dt>
+<dd>Go back to the list of profiles.
+</dd>
+</dl>
+<h5>Adding or changing an option</h5>
+<p>The window shows one option of the profile. When an option is added (F6) the keyword and the value are typed; when it is changed (option 2) only the value. Description, Values and Kind come from the dictionary of the keywords and are shown as soon as the keyword is known. Enter checks the option and saves it. F12 closes the window and leaves the options as they are.
+</p>
+<p>A profile has every keyword once. To give a keyword another value, change the option that is there.
+</p>
+<h5>Keyword</h5>
+<p>The name of the option, in lower case. Only keywords of the dictionary are accepted, and only those that exist for the database type of the profile. F4 with the cursor in this field shows them with their descriptions; type 1 next to one to take it. The keyword of an option that is there cannot be changed: delete the option and add another.
+</p>
+<h5>Value</h5>
+<p>The value of the option, up to 200 characters on four lines; fill a line before the next one. Upper and lower case are kept as typed.  When the line Values shows a list of values, only one of them is accepted, and F4 with the cursor in the value shows the list to choose from. When it shows (any value), the keyword takes any value; the driver or the database client checks it when a connection is opened.
+</p>
+<h5>Keywords for every database type</h5>
+<dl>
+<dt><b>idle_check</b></dt>
+<dd>Seconds a connection may be idle before the driver tests it at the next statement. Without the option it is 2. When the test finds the connection gone, the driver opens it again; the program notices nothing unless a unit of work was open, in which case the statement fails with SQLCODE -911 and the unit of work is lost. 0 never tests.
+</dd>
+<dt><b>ping_timeout</b></dt>
+<dd>Seconds to wait for the answer to that test. Without the option it is 5.
+</dd>
+<dt><b>fetch_rows</b></dt>
+<dd>Rows of a query the driver asks from the server at a time, 1 to 5000. Without the option it is 200. Each such group is one exchange with the server, so a higher number helps where the server is far away: reading many rows then waits less often for the line.  It changes nothing for a program: the rows reach Db2 in blocks of the same size as before, and FETCH works as before.
+<p>The driver asks for fewer rows by itself when the rows are long, so that one group stays within about 4 MB of memory, whatever the option says. The first group of a cursor is sized by what its rows can be at the most (the lengths the columns are described with), the following ones by the largest row the cursor has delivered. So a query that describes its columns far wider than its values are is not held back, and rows that are longer than described (MySQL sends long values whole) make the groups smaller. What the rows can be at the most still sets a ceiling of 64 MB for one group.
+</p>
+</dd>
+<dt><b>joblog</b></dt>
+<dd>Which errors of the database server are written to the job log as message CPF9897: long (only texts too long for the SQL message, the default), all, or off.
+</dd>
+<dt><b>trim_char</b></dt>
+<dd>on (the default) removes the trailing blanks of fixed-length character host variables before they are sent. off sends them as they are.
+</dd>
+<dt><b>user_case</b></dt>
+<dd>The user given on CONNECT USER arrives in upper case from Db2. lower (the default) turns it to lower case, asis leaves it.
+</dd>
+<dt><b>product</b></dt>
+<dd>The product identifier reported to Db2, 8 characters. Leave it out unless a tool needs a particular one.
+</dd>
+<dt><b>passfile</b></dt>
+<dd>A stream file with passwords, used when none is stored; see the topic about the password.
+</dd>
+<dt><b>allowed_users</b></dt>
+<dd>The user profiles and group profiles that may connect with the profile, separated by blanks, or *ALL. It is the field Allowed users of the profile, whose help tells how the check works; use the option when more than three names are needed. Without the option every user may connect.
+</dd>
+</dl>
+<h5>Keywords for PostgreSQL (PG)</h5>
+<dl>
+<dt><b>savepoints</b></dt>
+<dd>on (the default) sets a savepoint before every statement of a unit of work, so that a failing statement does not make PostgreSQL refuse all the following ones until the rollback. off leaves that out.
+</dd>
+<dt><b>long_values</b></dt>
+<dd>cut (the default) asks the server for no more than the text column length of long columns. full reads them whole; the driver still gives Db2 no more than the text column length.
+</dd>
+<dt><b>lob_direct</b></dt>
+<dd>For the file functions (GET_BLOB_FROM_FILE and the others): the largest value, in KB, that travels in one piece. The default is 4096, the limit 6144. A larger value is staged in a large object of the server and moved in pieces. 0 stages every value.
+</dd>
+<dt><b>sslmode</b></dt>
+<dd>The exact sslmode of the PostgreSQL client: disable, allow, prefer, require, verify-ca or verify-full. It replaces the Encryption field.
+</dd>
+<dt><b>sslrootcert</b></dt>
+<dd>A stream file with the certificates of the certificate authorities that are trusted.
+</dd>
+<dt><b>application_name</b></dt>
+<dd>The name shown for the connection in pg_stat_activity.
+</dd>
+<dt><b>options</b></dt>
+<dd>Options for the server session, for example -c search_path=sales.
+</dd>
+<dt><b>keepalives_idle</b></dt>
+<dd>Seconds without traffic before TCP keepalive starts.
+</dd>
+<dt><b>target_session_attrs</b></dt>
+<dd>The kind of server wanted when the host is one of several: any, read-write, read-only, primary or standby.
+</dd>
+</dl>
+<h5>Keywords for MySQL (MYSQL)</h5>
+<dl>
+<dt><b>init_sql</b></dt>
+<dd>A statement run right after the connection is opened, for example to set the time zone or the SQL mode of the session.
+<p>Two that are often wanted:
+</p>
+<p>SET NAMES utf8mb4 gives the session the collation the server uses for the character set. The driver signs on with utf8mb4_general_ci, and MySQL 8.0 and later then refuse to compare a variable of the session (@v) with a column of their own default collation (error 1267, Illegal mix of collations).
+</p>
+<p>SET SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES') makes the server refuse a value that does not fit its column. A server that is not strict cuts a text that is too long, takes the nearest number or stores a zero date, and reports success: the program gets SQLCODE 0. SELECT @@sql_mode through the connection shows what a server does.
+</p>
+<p>Both in one statement: SET NAMES utf8mb4, SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES')
+</p>
+</dd>
+<dt><b>tls</b></dt>
+<dd>The exact TLS mode: off, prefer, require or verify. It replaces the Encryption field.
+</dd>
+<dt><b>socket_buffer</b></dt>
+<dd>The size of the send and of the receive buffer of the connection, in KB, up to 8192. Without the option the driver asks for 1024.  The buffer limits how much the server may send before the driver has taken it; with the 64 KB a system usually gives a connection, a server that answers in 40 milliseconds sends about 1.5 MB a second at the most, however fast the line is. 0 leaves the size the system gives. The connection information shows the size in force (link, socket_buffer).
+</dd>
+</dl>
+<h5>Keywords for Microsoft SQL Server (MSSQL)</h5>
+<dl>
+<dt><b>init_sql</b></dt>
+<dd>A statement run right after the connection is opened.
+</dd>
+<dt><b>encrypt</b></dt>
+<dd>The exact encryption mode: off, prefer, on or strict. It replaces the Encryption field.
+</dd>
+<dt><b>tls_verify</b></dt>
+<dd>on checks the certificate of the server, off does not.
+</dd>
+<dt><b>tds</b></dt>
+<dd>7.1 forces the old protocol version, which SQL Server 2000 needs.
+</dd>
+<dt><b>charset</b></dt>
+<dd>The CCSID of varchar data, when the driver cannot tell it from the collation of the server.
+</dd>
+<dt><b>string_params</b></dt>
+<dd>The type in which character host variables are sent: auto, varchar or nvarchar. varchar lets SQL Server use an index on a varchar column.
+</dd>
+<dt><b>datetime2</b></dt>
+<dd>on sends a TIMESTAMP as datetime2 and a TIME as time. Without it a TIMESTAMP goes as datetime, which finds the values of datetime columns but carries milliseconds only, and a TIME as text. A DATE goes as date in both cases. Use on with tables that have datetime2 columns.
+</dd>
+<dt><b>appname</b></dt>
+<dd>The application name shown on the server.
+</dd>
+<dt><b>socket_buffer</b></dt>
+<dd>The size of the send and of the receive buffer of the connection, in KB, up to 8192. Without the option the driver asks for 1024.  The buffer limits how much the server may send before the driver has taken it; with the 64 KB a system usually gives a connection, a server that answers in 40 milliseconds sends about 1.5 MB a second at the most, however fast the line is. 0 leaves the size the system gives. The connection information shows the size in force (link, socket_buffer).
+</dd>
+</dl>
+<h5>Choosing a value (F4)</h5>
+<p>The window lists the values that can be put into the field the cursor was in. Type 1 next to one of them and press Enter; the value is put into the field. F12 closes the window and leaves the field as it is. Page down shows more values when the list ends with More.
+</p>
+<h5>Confirmation</h5>
+<p>The window says what is about to be done: deleting a profile with its options and its stored password, deleting an option, or adding an RDB directory entry. Enter does it. F12 closes the window and nothing is done.
+</p>
+<h3>The RDB directory entry</h3>
+<p>Db2 finds a remote database through the RDB directory. An entry with the RDB name of the profile and the driver program XDBARD as its program makes CONNECT TO that name call the driver. Without the entry the profile cannot be used.
+</p>
+<p>Option 8 on the list adds it after a confirmation. It runs
+</p>
+<p>
+<pre>
+ADDRDBDIRE RDB(name) RMTLOCNAME(*ARDPGM) ARDPGM(library/XDBARD)
+  TEXT('description')
+</pre>
+</p>
+<p>with the library the driver is in. The text of the entry, which the list of WRKRDBDIRE shows, is the description of the profile; for a profile without a description it is the database type and the host.  The entry is for the whole system. When it exists already, the option says so and changes nothing, its text included: a description changed later is brought there with CHGRDBDIRE RDB(name) TEXT('...'). Deleting a profile does not remove the entry; use the Work with RDB Directory Entries (WRKRDBDIRE) command for that.
+</p>
+<h3>The connection test</h3>
+<p>Option 9 on the list connects to the database exactly as a program would, through CONNECT TO, and shows the result in a window: the version of the server when the connection was opened, or the SQLCODE, the SQLSTATE and the message of the server when it was not.  The connection is closed again. Nothing is changed on the server.
+</p>
+<p>The test needs the RDB directory entry (option 8) and uses the stored password.
+</p>
+<h3>Using a profile from SQL and from a program</h3>
+<p><b>Interactive SQL (STRSQL):</b>
+</p>
+<p>
+<pre>
+CONNECT TO name
+SELECT ... FROM schema.table
+COMMIT
+DISCONNECT name
+CONNECT RESET
+</pre>
+</p>
+<p>The statements are written in the SQL of the server, with its names and its functions. A name with lower case letters is put between double quotation marks where the server asks for that.
+</p>
+<p>The session has to run under commitment control: STRSQL COMMIT(*CHG), or F13 and Change session attributes. With *NONE the CONNECT works and every statement after it is refused with message SQL5028; Db2 allows *NONE only for Db2 for i.
+</p>
+<p><b>Connections:</b>
+</p>
+<ul>
+<li>A job can have several connections at the same time. SET CONNECTION name makes another one the current connection; open cursors of the one left behind stay open.
+</li>
+<li>A connection stays open until DISCONNECT, until RELEASE followed by COMMIT, or until the job or the activation group of the program ends.
+</li>
+<li>The connections run under commitment control. The first statement, a SELECT too, opens a unit of work on the server. DISCONNECT is refused with message SQL0428 while it is open: run COMMIT or ROLLBACK first. Commit also before a session is left idle, because the open unit of work can hold locks on the server.
+</li>
+<li>COMMIT and ROLLBACK apply to all the connections of the unit of work, the local database included. A commit that cannot take place on a server fails as a whole: see COMMIT and ROLLBACK below.
+</li>
+<li>CONNECT TO name USER x USING y signs on to the server with that user and password instead of those of the profile. Ten characters of each reach the driver; what is longer is cut without a message.  The user arrives in upper case and is turned to lower case unless option user_case says asis. A profile that names its allowed users is checked in the same way with and without USER.
+</li>
+</ul>
+<p><b>COMMIT and ROLLBACK:</b>
+</p>
+<p>The driver takes part in the commit of the system, so that a commit which cannot take place on a server fails for the program.
+</p>
+<ul>
+<li>The first server connection decides the commit. The system prepares everything else, then the driver commits on that server; when that fails, the system rolls back everything else, the local database included. The local database and this one server are committed together or not at all.
+</li>
+<li>Every further server connection is asked, before anything is committed, whether its server is still there, and is committed after the first. A server that is gone makes the whole unit of work roll back.
+</li>
+<li>A connection that only read never makes a COMMIT fail by being lost.
+</li>
+</ul>
+<p>When the commit fails, COMMIT returns SQLCODE -175, SQLSTATE 58028, and the unit of work is rolled back everywhere. The job log has the reason from the driver in message CPF9897 (it starts with XDB and the name of the connection), followed by CPD83EC, CPD83D7, CPF83DB and SQL0175. SELECT * FROM XDB_LAST_ERROR shows the reason too. Run ROLLBACK, then run the unit of work again or stop.
+</p>
+<p>The reasons:
+</p>
+<dl>
+<dt><b>the connection to the server was lost before it</b></dt>
+<dd>The session ended since the last statement: the server closed an idle session, a firewall dropped the connection, the server was restarted. What the unit of work changed on the server went with it.
+</dd>
+<dt><b>what this unit of work changed on the server was lost earlier</b></dt>
+<dd>A statement of this unit of work was already answered with SQLCODE -911. A unit of work that got -911 cannot be committed, whatever the program did after it.
+</dd>
+<dt><b>COMMIT refused by the server</b></dt>
+<dd>The server was asked and said no: a constraint that is checked at the end, a conflict with another transaction, or on PostgreSQL with option savepoints off a statement that had failed.
+</dd>
+<dt><b>the server ended the session instead of committing</b></dt>
+<dd>The server answered the COMMIT with its last message and closed the session.
+</dd>
+<dt><b>whether it has committed is not known</b></dt>
+<dd>The connection broke while the server worked on the COMMIT. The rest is rolled back, but the server may have committed: look at the data on the server.
+</dd>
+</dl>
+<p>A unit of work only reads on a connection when it runs nothing there but queries and SET or USE statements. A query counts as a change when its text has one of the words INSERT, UPDATE, DELETE, MERGE, INTO, CALL, EXEC, EXECUTE, NEXTVAL, SETVAL, CREATE, DROP, ALTER or TRUNCATE. A function that changes data and is called in a plain SELECT is not seen.
+</p>
+<p>Not covered: the second and further server connections are only asked whether their server is still there. A server that is there and then refuses its own commit (a constraint that is checked at the end, a conflict with another transaction), or that fails in the moment between the question and its commit, loses its changes while the rest is committed; message CPF9897 in the job log says so (THE REST OF THE UNIT OF WORK IS COMMITTED). Connect first to the server whose changes matter most. The servers are not asked for a real two-phase commit.
+</p>
+<p>Program XDBLOST in the sources (test/xdblost.sqlrpgle) lets sessions end inside units of work and prints what COMMIT answers.
+</p>
+<p><b>Statements a server runs only outside a transaction:</b>
+</p>
+<p>The first statement of a unit of work opens a transaction on the server, and PostgreSQL refuses some statements inside one: CREATE DATABASE, DROP DATABASE, VACUUM, CREATE INDEX CONCURRENTLY, ALTER SYSTEM and a few more (SQLSTATE 25001). The driver runs such a statement on its own when the unit of work has no change and no open cursor on that connection: it ends its empty transaction, runs the statement, and begins a new transaction with the next statement. So it works as the first statement after CONNECT, COMMIT or ROLLBACK, and after statements that only read.
+</p>
+<p>
+<pre>
+COMMIT
+VACUUM ANALYZE ORDERS
+</pre>
+</p>
+<ul>
+<li>What the statement did is final at once: a ROLLBACK does not undo it.
+</li>
+<li>A SET of the session that ran before it in the same unit of work stays.
+</li>
+<li>With changes or an open cursor in the unit of work the statement is refused (SQLCODE -438, SQLSTATE 25001); the text in the job log and in SELECT * FROM XDB_LAST_ERROR says what is in the way. Run COMMIT or ROLLBACK first. The unit of work goes on.
+</li>
+<li>In a program: EXECUTE IMMEDIATE, or PREPARE and EXECUTE.
+</li>
+<li>With option savepoints off the statement is also refused after a SET in the same unit of work: run COMMIT after the SET.
+</li>
+<li>Only for PostgreSQL. SQL Server refuses CREATE DATABASE and some other statements inside a transaction too; there they are still refused.
+</li>
+</ul>
+<p><b>Programs with embedded SQL:</b>
+</p>
+<ul>
+<li>Create the program with RDB(*LOCAL) and COMMIT(*CHG) on the CRTSQLRPGI command. The name of a relational database in place of *LOCAL works too, but is not needed: no SQL package has to be made, and one program can connect to every profile. A program created with RDB(*NONE) cannot connect (SQL0862); on some systems that is what the command does when RDB is left out. COMMIT(*NONE) is not accepted (SQL5028).
+</li>
+<li>Use dynamic SQL: PREPARE and EXECUTE, and for a query a cursor declared for a prepared statement, with parameter markers for the values.
+</li>
+<li>For a local table that is not journaled, add WITH NC to the statement, or use the record operations of the language, which do not depend on the current connection.
+</li>
+<li>To read many rows, fetch them in blocks: FETCH cursor FOR n ROWS INTO a data structure array. Take the number of rows from SQLERRD(3); it can be less than n before the end. The driver brings up to 200 rows from the server with each exchange whatever n is, so a few hundred is enough.
+</li>
+<li>One program can read a server and fill a local table. With the record operations of the language on the local side the connection is never changed. With SQL on the local side change the connection once for each block of rows, not for each row, and write the block with one INSERT (INSERT INTO table n ROWS VALUES(array)). Commit at the end: COMMIT closes the cursor on the server too.  Program XDBETL in the sources (test/xdbetl.sqlrpgle) is a sample with three servers and the local database in one program.
+</li>
+</ul>
+<p><b>Values a program passes and receives:</b>
+</p>
+<ul>
+<li>A question mark is a parameter marker except inside a literal, a quoted name or a comment, as the server reads them: on PostgreSQL also not inside dollar-quoted text ($$ ... $$), on MySQL not after a number sign. PostgreSQL has operators written with a question mark (those of jsonb): write the question mark twice where the operator is meant (?? for the operator ?).
+</li>
+<li>PostgreSQL takes the type of a value from the place of its marker (WHERE N = ?). Where the statement leaves the type open (SELECT ?, ? IS NULL) the value is passed as text: write CAST(? AS INTEGER) there when a number is meant.
+</li>
+<li>On MySQL and SQL Server a numeric host variable is passed as a number, so it can be used for a LIMIT, an ENUM by its number or a BIT column.
+</li>
+<li>A floating point host variable is passed as the shortest decimal number that gives the same value back: a REAL that holds 0.1 goes as 0.1, into a DOUBLE or DECIMAL column too.
+</li>
+<li>A value Db2 has no place for arrives as a value that could not be converted (indicator -2, the other columns of the row are there), never as another value: NaN and Infinity, a date before the year 1 or after 9999, the dates 0000-00-00 and the like and a time of more than 24 hours of MySQL, a number too large for its column.
+</li>
+</ul>
+<p><b>Long values and large objects:</b>
+</p>
+<ul>
+<li>The interface of the system that the driver is called through does not carry large objects (BLOB, CLOB, DBCLOB). A column without a length limit, such as text, json or bytea in PostgreSQL or varchar(max) in SQL Server, arrives as a character value of the Text col. length of the profile, 32000 at most. What is longer is cut without a warning.
+</li>
+<li>Such a value can be fetched into a CLOB variable or into a CLOB file reference variable (SQLTYPE(CLOB_FILE) in RPG): Db2 writes the stream file. It holds the value as it arrived, cut at the same length.
+</li>
+<li>A bytea column of PostgreSQL arrives as text: \x and two hexadecimal digits for every byte. It cannot be fetched into a BLOB variable or a BLOB file (SQL0303).
+</li>
+<li>A large object variable or a file reference variable cannot be the value of a parameter marker. With a file reference the statement fails with SQLCODE -804; message CPF9897 in the job log and XDB_LAST_ERROR tell which host variable it was. A CLOB or BLOB variable is refused by Db2 with SQL0311 before the driver is called. Pass the value in a character variable (VARCHAR), or use the file functions that follow.
+</li>
+</ul>
+<p><b>Large values from and to stream files:</b> A value of megabytes cannot pass through a host variable, but it can pass beside Db2: the statement names a stream file, and the driver moves the value between that file and the server, on the connection and in the unit of work of the statement. Four functions in the text of a statement ask for it, on PostgreSQL, MySQL and SQL Server connections alike. The examples are written for PostgreSQL; the rest of a statement is in the language of its server, so the name of a file is put together with CONCAT(...) on MySQL and with + on SQL Server.
+</p>
+<p>
+<pre>
+INSERT INTO DOC (ID, BODY) VALUES(?, GET_BLOB_FROM_FILE(?))
+UPDATE DOC SET NOTE = GET_CLOB_FROM_FILE('/home/me/n.txt')
+  WHERE ID = 7
+SELECT ID, PUT_BLOB_TO_FILE(BODY, '/home/me/d' || ID || '.pdf')
+  FROM DOC WHERE YEAR = 2026
+SELECT PUT_CLOB_TO_FILE(NOTE, ?, 16, 1252) FROM DOC WHERE ID = ?
+</pre>
+</p>
+<dl>
+<dt><b>GET_BLOB_FROM_FILE(name), GET_CLOB_FROM_FILE(name)</b></dt>
+<dd>The bytes, or the text, of a stream file as a value, in a statement that returns no rows (INSERT, UPDATE, CALL). The names and the meaning are those of the functions of Db2 for i. name is a string or a parameter marker. Text is converted from the CCSID of the file.
+</dd>
+<dt><b>PUT_BLOB_TO_FILE(value, name, option)</b></dt>
+<dd>A column of the result of a query. Every row that is fetched writes its value to the file named by the second argument, which can be any expression of the server, also one built from other columns.  The column itself is the number of bytes the file grew by, or null when the value is null; then no file is touched. option is optional and has the values of a file reference variable: 8 the file must not exist, 16 create or replace (the default), 32 create or append. A new file has CCSID 65535.
+</dd>
+<dt><b>PUT_CLOB_TO_FILE(value, name, option, ccsid)</b></dt>
+<dd>The same for text. ccsid is optional and is the CCSID a new file gets; the default is 1208 (UTF-8), which loses no character. A file that exists keeps the CCSID it has: text that replaces its content or is appended to it is converted to that CCSID.
+</dd>
+</dl>
+<ul>
+<li>The functions are found in the statement text, so the statement must be dynamic: PREPARE and EXECUTE, or a cursor on a prepared statement. In interactive SQL they can be typed as they are. PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE must be columns of the outermost SELECT, with no * in front of them.
+</li>
+<li>The files are opened as the user of the job, with the authority of that user. Others can read a new file, the owner can change it.  The name of a file to write comes from the server with the row: build it from values you trust.
+</li>
+<li>The job never holds more than a piece of a value, whatever its size. The limit is the one of the server.
+</li>
+<li>PostgreSQL: a value up to option lob_direct (4 MB) travels in one piece. A larger one passes through a large object of the server, which the driver writes or reads in pieces of 1 MB and removes again in the same unit of work. The limit is 1 GB. On a server that only allows reading, values up to lob_direct can be written to files, larger ones not.
+</li>
+<li>MySQL and MariaDB: a file is sent as the value of a parameter in pieces of 1 MB; a value for a file is written while its row arrives. The limit is max_allowed_packet of the server (64 MB by default on MySQL 8, 16 MB on MariaDB). A longer file is refused; a longer value to write ends the OPEN with SQLSTATE 54000.
+</li>
+<li>SQL Server 2005 and later: a file is sent as a varbinary(max) or nvarchar(max) parameter in pieces; a value for a file is written while its row arrives. The limit is 2 GB.
+</li>
+<li>SQL Server 2000: a file is sent as an image or ntext parameter, which is good for the columns of INSERT and UPDATE.  PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE are not available there (SQLCODE -84).
+</li>
+<li>On MySQL and SQL Server a file is written by the fetch that reads its row, one row at a time. A file that was written to its end stays, also when another column of the same row then fails.
+</li>
+<li>PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE cannot be combined with UNION, EXCEPT or INTERSECT.
+</li>
+<li>Text read from a file must be valid in its CCSID. Text that is not is refused with SQLSTATE 22021 and the place of the first wrong byte.
+</li>
+<li>When a transfer fails, no half file is left: a new or replaced file is removed, a file that was extended is cut back. A file that was written stays when the unit of work is rolled back.
+</li>
+<li>An error with a file is SQLCODE -452 (SQLSTATE 428A1) with the reason codes of message SQL0452: 1 the name is not valid or names a directory, 2 the name is too long, 4 the file or its directory is not found, 5 the file exists and option 8 was given.  No authority is SQLCODE -551, a file in use -913. Message CPF9897 in the job log names the file.
+</li>
+</ul>
+<p><b>Stored procedures of the server:</b> A procedure of the server is called with the statement of the server, as dynamic SQL: CALL name(...) on PostgreSQL and MySQL, EXEC name ... on SQL Server. A program prepares and executes it; in STRSQL it is typed. The rows a procedure returns are fetched through a cursor on its call:
+</p>
+<p>
+<pre>
+PREPARE S1 FROM 'CALL MYPROC(?)'       (SQL Server: 'EXEC MYPROC ?')
+DECLARE C1 CURSOR FOR S1
+OPEN C1 USING :N
+FETCH C1 INTO :A, :B
+</pre>
+</p>
+<ul>
+<li>Values go in as parameter markers. An EXECUTE hands nothing back, no output parameter and no return code: a value that comes back is left with the server and read with a query. On MySQL a variable of the session takes it: CALL P(?, ?, @TOTAL) and then SELECT @TOTAL. On PostgreSQL a cursor on CALL P(?, ?, NULL) has one row with the OUT and INOUT parameters. On SQL Server put the value into a temporary table in the same batch as the EXEC.
+</li>
+<li>The procedure runs when the cursor is opened, once for each OPEN, with the values of that OPEN. The cursor has its first result set; further result sets are read and dropped.
+</li>
+<li>All rows are read at the OPEN and kept in the memory of the job until they are fetched. For very many rows let the procedure fill a temporary table and read that with an ordinary cursor.
+</li>
+<li>MySQL tells the columns of the rows only when the procedure has run. Db2 gets them with the OPEN, so FETCH INTO works as with any cursor; before its first OPEN the statement has no columns to describe. EXPLAIN and some SHOW statements of MySQL are opened and fetched in the same way. SQL Server describes a procedure from its text, without running it; where that is not possible the columns come with the OPEN too.
+</li>
+<li>A SQL Server procedure with more than one way through it can return a first result set with another number of columns than it was described with. The OPEN then gets SQLSTATE 07008 (SQLCODE -438), and the procedure has run.
+</li>
+<li>On PostgreSQL a function that returns a table is a query: SELECT * FROM F(?). A procedure returns no result set there. It can open a cursor of the server and hand back its name: execute CALL P(?, 'ROWS1') and then open FETCH ALL FROM ROWS1 as a cursor, both in one unit of work.
+</li>
+<li>On PostgreSQL other statements that are no query return rows too, and are opened and fetched like a call: INSERT, UPDATE and DELETE with RETURNING, SHOW and EXPLAIN. The statement runs at the OPEN.
+</li>
+<li>A procedure that returns no result set has nothing to fetch: the OPEN gets SQLCODE -517 (SQLSTATE 07005), and the procedure has run all the same. Not so on PostgreSQL: the server says beforehand that a statement returns no rows, and it is not run. A procedure that fails gives its error to the OPEN.
+</li>
+<li>A call that is executed and not opened runs the procedure, and the rows it returns are dropped. STRSQL shows no rows for a CALL: to look at them there, let the procedure fill a temporary table and select from it.
+</li>
+<li>PUT_BLOB_TO_FILE and PUT_CLOB_TO_FILE cannot be used on the rows of a call. GET_BLOB_FROM_FILE and GET_CLOB_FROM_FILE can be arguments of a call.
+</li>
+<li>A call counts as a change of the unit of work: what the procedure did is committed or rolled back with the rest. A procedure that commits or rolls back by itself is better avoided.
+</li>
+<li>Program XDBPROC in the sources (test/xdbproc.sqlrpgle) is a sample for a MySQL server.
+</li>
+</ul>
+<p><b>Errors:</b> For the usual errors, such as a name that is not found, a duplicate key or a syntax error, Db2 shows its own message. For the others it shows the class of the error with SQLCODE and SQLSTATE. The complete message of the server is in the job log when it is long, and
+</p>
+<p>
+<pre>
+SELECT * FROM XDB_LAST_ERROR
+</pre>
+</p>
+<p>returns the last error of the job: SQLCODE, the SQLSTATE of the server, its error number, the database type, the RDB name and the whole message. In a program, GET DIAGNOSTICS CONDITION 1 gives the message text.
+</p>
+<p><b>What a connection is:</b>
+</p>
+<p>
+<pre>
+SELECT * FROM XDB_CONNECTION_INFO
+</pre>
+</p>
+<p>is answered by the driver itself, on any connection, without asking the server and without touching the unit of work. It returns rows of three columns, AREA, NAME and VALUE, with what the driver knows about the connection. It is there for finding the cause of a problem, and for a program that wants to know what kind of server it talks to. In a program the statement can also be written XDB CONNECTION INFO; prepare it and fetch its rows through a cursor.  Only these two spellings are answered: with a WHERE clause or a list of columns the statement goes to the server, which does not know the name.
+</p>
+<p>The areas and the main rows of each:
+</p>
+<dl>
+<dt><b>connection</b></dt>
+<dd>rdb, database_type (PostgreSQL, MySQL or SQL Server), host, port, database, user, profile (where it is kept), connected (when).
+</dd>
+<dt><b>link</b></dt>
+<dd>The connection to the server: protocol, encryption (none, or the TLS level and the cipher), session_id (the number of the session on the server: the process on PostgreSQL, the connection id on MySQL, the SPID on SQL Server), state.
+</dd>
+<dt><b>server</b></dt>
+<dd>product, version as the server reports it, version_number (major times 100 plus minor, on every server), and what else the server said when the connection was opened, such as its encoding, its time zone or the database of the session.
+</dd>
+<dt><b>session</b></dt>
+<dd>commit_mode, unit_of_work (none, open, open with changes, or that its changes are lost; while it is open DISCONNECT is refused), commit_resource (the part of the connection in a commit: last agent, asked before the commit, or only told), commit_resource_refused (what the system did not allow, with its message), statements, open_cursors, seconds_since_last_statement.
+</dd>
+<dt><b>counters</b></dt>
+<dd>Since CONNECT: reconnects (how often the driver opened the connection again after it was lost), last_reconnect, units_of_work_lost (how often that happened with a unit of work open), idle_checks, statements_prepared, statements_executed, rows_changed, cursors_opened, fetch_requests, rows_fetched, fetches_from_server, commits, commits_failed, rollbacks, errors.
+</dd>
+<dt><b>options</b></dt>
+<dd>The settings in effect: text_len, numeric_scale, ccsid, trim_char, idle_check, ping_timeout, fetch_rows, joblog, trace, and those only the database type has.
+</dd>
+<dt><b>limits</b></dt>
+<dd>Statements for a connection, parameters for a statement, columns of a result, connections for a job, rows for each exchange with the server.
+</dd>
+<dt><b>driver</b></dt>
+<dd>name, version (of the package the objects came from), built (when the code this job runs was compiled), library, job_ccsid, connections_in_job.
+</dd>
+</dl>
+<p>The rows are for people and for diagnosis, and they can change with a new version of the driver. A program takes the rows it needs by their names and goes on when one is missing. The row built tells whether a job still runs the code from before an update: a job keeps the driver it has loaded until it ends. Program XDBINFO in the sources (test/xdbinfo.sqlrpgle) prints the rows and shows how a program picks single values.
+</p>
+<h3>Setup: installing, moving and checking</h3>
+<p>XDBARDDRV works from any library of the system ASP. The library is not asked for: it is the one the program was started from, shown at the top of the display. The Setup display looks at that library and lists, one line for each check, what is in order and what is still to do. Run it after the objects were restored from a package, after the library was renamed or its objects were moved, after a new version was restored over an old one, or whenever you want to know that everything is as it should be.
+</p>
+<p><b>Nothing is changed unseen:</b> What a line needs is a small number of CL commands. A window shows them, exactly as they will run, before anything happens, and they run only when you press Enter there. Every command is also written to the job log before it runs. When a command fails, the window says which one and shows the message; the commands after it are not run.  Setup changes nothing outside the library except the owner profile, which it creates when you confirm that line. It never changes a system value, and it never touches profiles or passwords that are already there.
+</p>
+<h5>Owner profile (the field at the top)</h5>
+<p>The user profile that is to own the driver and the password list.  Setup proposes XDBOWNER, or the profile that owns the driver already when the driver runs with the authority of its owner. Type another name and press Enter to have the lines checked for that profile.  The line Owner profile of the list tells what the profile is for and how it is created.
+</p>
+<h5>Options of the Setup display</h5>
+<p>Type an option next to a line and press Enter.
+</p>
+<dl>
+<dt><b>1=Do it</b></dt>
+<dd>Show the commands of the line and, after Enter, run them and show the result. F12 in the window leaves the line as it is.
+</dd>
+<dt><b>5=Show the commands</b></dt>
+<dd>Show the commands of the line without running anything.
+</dd>
+</dl>
+<h5>The lines of the Setup display</h5>
+<p>Every line is one check of the installation in this library. The lines are done from top to bottom, because a line can need the one before it.
+</p>
+<dl>
+<dt><b>Library is in the system ASP</b></dt>
+<dd>Db2 calls the driver inside every job that connects. A library of an independent ASP is not there in jobs without that ASP group, so the objects must be in the system ASP or a basic user ASP. QTEMP cannot be used either.
+</dd>
+<dt><b>Your special authorities</b></dt>
+<dd>Tells whether you have *SECADM and *ALLOBJ, which the lines about owners need. Without them, option 5 on those lines shows the commands for a security officer to run.
+</dd>
+<dt><b>System value QRETSVRSEC</b></dt>
+<dd>The system gives stored passwords back only when this value is 1.  With 0 no password can be stored in a profile; the databases can still be used with a password given on the connect or with a password file. The line shows the command; setup does not run it.
+</dd>
+<dt><b>Option dictionary XDBKWD</b></dt>
+<dd>The file with the option keywords, which comes with the package.
+</dd>
+<dt><b>Profile files XDBPRF and XDBPRO</b></dt>
+<dd>The files of the profiles and their options. They are never part of a package, so restoring a package cannot overwrite profiles. Setup creates them empty from the model files XDBPRFMDL and XDBPROMDL.
+</dd>
+<dt><b>Password list XDBVLDL</b></dt>
+<dd>The validation list with the encrypted passwords. It is never part of a package. Setup creates it with public authority *EXCLUDE.
+</dd>
+<dt><b>Driver bound to this library</b></dt>
+<dd>In a package the programs of the driver find their service programs through the library list. Setup binds them to the service programs of this library (UPDPGM and UPDSRVPGM with SRVPGMLIB), so that the driver works in every job whatever its library list is. A job that is connected at that moment keeps the objects it has until it ends.
+</dd>
+<dt><b>Command WRKXDBPRF</b></dt>
+<dd>The command and its help are pointed to the program and the panel group of this library (CHGCMD), so that they work without the library list.
+</dd>
+<dt><b>Objects have an owner of this system</b></dt>
+<dd>A restore gives an object to profile QDFTOWN, the default owner, when the profile that owned it where it was saved does not exist on this system. That is so with a package that was built by a profile of its own. The line gives every object of the package that is found with QDFTOWN as its owner to QPGMR, one CHGOBJOWN for each object, which needs the authority to change owners (in practice *ALLOBJ). The objects work in the meantime. The driver XDB is not among them: it gets its owner in the last line.
+</dd>
+<dt><b>Owner profile</b></dt>
+<dd>The driver has to read the passwords for users who must not be able to read them themselves. For that it runs with the authority of the profile that owns it. Setup proposes profile XDBOWNER; another name can be typed at the top of the display. The profile is created with no password, so that nobody can sign on with it, with no special authority, and it owns nothing but the driver and the password list.
+</dd>
+<dt><b>Driver and passwords owned by it</b></dt>
+<dd>Service program XDB and validation list XDBVLDL are given to the owner profile, the public gets no authority to the list, and the service program is set to adopt the authority of its owner (CHGOBJOWN, GRTOBJAUT, CHGSRVPGM USRPRF(*OWNER)). A package comes without adoption; it is switched on here, where you see it.
+</dd>
+</dl>
+<h5>Status of a line</h5>
+<dl>
+<dt><b>OK</b></dt>
+<dd>The check found everything in order.
+</dd>
+<dt><b>To do</b></dt>
+<dd>Setup can do it: use option 1 on the line, or F10.
+</dd>
+<dt><b>A remark</b></dt>
+<dd>Something to know or to hand to somebody else, such as a system value. Option 5 shows the command when there is one.
+</dd>
+<dt><b>Failing</b></dt>
+<dd>The installation cannot work like this and setup cannot repair it, for example when the library is in an independent ASP or objects of the package are missing.
+</dd>
+</dl>
+<h5>Function keys</h5>
+<dl>
+<dt><b>F1=Help</b></dt>
+<dd>Show the help for the place the cursor is in. F2 in the help shows the help of the whole display.
+</dd>
+<dt><b>F3=Exit</b></dt>
+<dd>Leave the Setup display.
+</dd>
+<dt><b>F5=Check again</b></dt>
+<dd>Run all the checks again.
+</dd>
+<dt><b>F10=Do all that is to do</b></dt>
+<dd>Go through the lines that are to do, from top to bottom, each with its window and its confirmation. F12 skips a line, F3 stops.
+</dd>
+<dt><b>F12=Cancel</b></dt>
+<dd>Leave the Setup display.
+</dd>
+</dl>
+<h5>The window with the commands of a line</h5>
+<p>The window shows the CL commands a line of the Setup display needs, exactly as they will run, with a note above them that tells what they are for. With option 1 and with F10, Enter runs the commands and a second window shows for each of them whether it was done; the first command that fails stops the line, and its message is shown.  F12 leaves the line as it is. With option 5 nothing is run and Enter only closes the window.
+</p>
+<p>A line with more commands than the window holds is shown in pages.  The bottom line then says that more follows, and Enter shows the next page; the commands are run only after Enter on the last page, where the bottom line says so. F12 on any page leaves the line as it is.
+</p>
+<p>A command that setup never runs itself, such as the change of a system value, is only shown, for the person who may run it.
+</p>
+<h5>Installing, updating, passwords afterwards, removing</h5>
+<p><b>Installing from a package:</b>
+</p>
+<ol>
+<li>Create the library, for example XDB, and restore the objects of the package into it (RSTOBJ with RSTLIB).
+</li>
+<li>Add the library to the library list (ADDLIBLE) and run WRKXDBPRF.  Until the command has been set up it finds its program through the library list.
+</li>
+<li>The Setup display comes by itself. Press F10 and confirm the lines.
+</li>
+<li>F3 leads to the list of profiles. Add the profiles, set their passwords, test them with option 9 and add the RDB directory entries with option 8.
+</li>
+</ol>
+<p><b>Updating to a newer package:</b> Restore the newer objects over the same library, with one parameter more than for the first restore:
+</p>
+<p>
+<pre>
+RSTOBJ OBJ(*ALL) SAVLIB(CESCO2) DEV(*SAVF) SAVF(...)
+  RSTLIB(library) ALWOBJDIF(*OWNER *FILELVL)
+</pre>
+</p>
+<p>The parameter is needed because objects of the library have another owner than those of the package (the driver belongs to the owner profile since the setup, and the others can differ too), and because the option dictionary and the two model files are made anew for every package. Without it the restore leaves those objects out, and old objects stay beside new ones; repeat the restore with the parameter then. It asks for special authority *ALLOBJ. The messages CPF370B, one for each object whose owner differs, and CPF3848 are expected.
+</p>
+<p>Then start the program of the library (CALL library/XDBPRFM), press F9 and F10: the lines about the binding, the command and the owner are to do again, and connections may fail until they are done.  The profiles, their options and their passwords are kept.
+</p>
+<p><b>Who can store passwords afterwards:</b> The password list belongs to the owner profile and the public has no authority to it. A person who keeps the profiles needs *CHANGE authority to XDBVLDL, or *ALLOBJ, to store or remove a password.
+</p>
+<p><b>Removing XDBARDDRV:</b> Remove the RDB directory entries of the profiles (WRKRDBDIRE), delete the library, and delete the owner profile.
+</p>
+<h3>When something does not work</h3>
+<dl>
+<dt><b>CONNECT fails</b></dt>
+<dd>Run option 9 on the profile; its window shows the answer of the server. SQLCODE -30061 means that the profile is disabled or missing, or that the server does not have the database. -30080 means that the server was not reached (host, port, firewall, TLS).  -30082 means that the server refused the user or the password, that the stored password could not be read, or that the user of the job is not among the allowed users of the profile. The reason is in the job log, in message CPF9897, unless option joblog of the profile is off.
+</dd>
+<dt><b>CONNECT is refused for some users only</b></dt>
+<dd>Message CPF9897 in the job log says that the user is not among the users allowed for the profile. Look at Allowed users of the profile (option 2), or at option allowed_users (option 7): the user of the job has to be named there, or be a member of a group profile named there.
+</dd>
+<dt><b>A large object cannot be read or written</b></dt>
+<dd>Large object variables do not work with these connections. Use the file functions (GET_BLOB_FROM_FILE, PUT_BLOB_TO_FILE and the two for text): see the parts about long values and about large values from and to stream files in the topic about using a profile from SQL.
+</dd>
+<dt><b>SQLCODE -452 with a file function</b></dt>
+<dd>The file could not be read or written. Message CPF9897 in the job log names the file and the reason; SELECT * FROM XDB_LAST_ERROR shows the same text. A name without a directory is looked for in the current directory of the job.
+</dd>
+<dt><b>A local program cannot connect (SQL0862)</b></dt>
+<dd>The program was created with RDB(*NONE). Create it again with RDB(*LOCAL) COMMIT(*CHG).
+</dd>
+<dt><b>Every statement is refused with SQL5028</b></dt>
+<dd>The session or the program runs without commitment control. Use STRSQL COMMIT(*CHG), or create the program with COMMIT(*CHG).
+</dd>
+<dt><b>The server does not know the database</b></dt>
+<dd>On PostgreSQL a name written without quotation marks is in lower case: type it in lower case in the profile. A profile without a database asks for one with the name of the user.
+</dd>
+<dt><b>A statement cannot run inside a transaction (SQLSTATE 25001)</b></dt>
+<dd>The server runs it only outside a transaction, and the unit of work has changes or an open cursor. Run COMMIT or ROLLBACK, then the statement. See the topic about using a profile from SQL.
+</dd>
+<dt><b>Relational database not in the directory</b></dt>
+<dd>The RDB directory entry is missing; use option 8.
+</dd>
+<dt><b>Characters arrive wrong</b></dt>
+<dd>Check Column CCSID. A character the CCSID does not have cannot be shown. Line ends and tabs inside a text are kept as control characters, which a 5250 display cannot show.
+</dd>
+<dt><b>A text is cut</b></dt>
+<dd>Raise Text col. length, up to 32000.
+</dd>
+<dt><b>A statement fails after a pause</b></dt>
+<dd>The server dropped the idle connection while a unit of work was open (SQLCODE -911). Run ROLLBACK and start the unit of work again; a COMMIT would be refused. Commit before long pauses.
+</dd>
+<dt><b>COMMIT fails with SQLCODE -175</b></dt>
+<dd>The commit could not take place on a server and the whole unit of work was rolled back. Message CPF9897 in the job log, just before CPD83EC, tells which connection and why; SELECT * FROM XDB_LAST_ERROR shows the same. See COMMIT and ROLLBACK in the topic about using a profile from SQL.
+</dd>
+<dt><b>The job log ends with MCH3601, CPF8367 and CPF9999</b></dt>
+<dd>A job that has used the local database and a connection through the driver gets these messages, with CPF4404 and CPF93B7, once when it ends. They come from the system after everything was committed or rolled back, and the job ends normally. Nothing has to be done; see Limits in the README.
+</dd>
+<dt><b>The list says the setup is not complete</b></dt>
+<dd>Press F9. The lines that are not OK tell what is missing; see the topic about the setup.
+</dd>
+<dt><b>Connections fail in some jobs only</b></dt>
+<dd>The driver may still be bound through the library list, which those jobs do not have. Press F9 and look at the line about the binding.
+</dd>
+<dt><b>Nothing explains it</b></dt>
+<dd>Set Trace to Y, repeat the failing step, and read /tmp/xdb_name.log. Set Trace back to N afterwards.
+</dd>
+</dl>
+<h3>Licence</h3>
+<p>XDBARDDRV is published under the MIT licence, Copyright (c) 2026 cesco. Anyone may use, change and pass on the software, also as part of something else, as long as the copyright line and the text of the licence stay with every copy. The software comes as it is, without warranty of any kind, and its author is not liable for what is done with it. It is experimental: try it on test data before you rely on it.
+</p>
+<p>Service program LIBPQ is built from the client library libpq of PostgreSQL and is under the PostgreSQL Licence; some of its files carry in addition the notice of their first authors. These notices ask that their text stays with every copy.
+</p>
+<p>The texts are in the files LICENSE and THIRD-PARTY-NOTICES.txt, which come with the save files of the package and are in the sources, and in source file XDBLICENSE of this library (members LICENSE and NOTICES). Pass them on together with the software.
+</p>
+</div>
+<table width="100%">
+<tr><td align="right"><a href="#WRKXDBPRF.Top_Of_Page">Top</a></td></tr>
+</table>
+<hr width="100%" size="2">
+
+<div>
+<h3><a name="WRKXDBPRF.PARAMETERS.TABLE">Parameters</a></h3>None<br>
+
+<table width="100%">
+<tr><td align="right"><a href="#WRKXDBPRF.Top_Of_Page">Top</a></td></tr>
+</table>
+</div>
+<hr width="100%" size="2">
+<div> <a name="WRKXDBPRF.COMMAND.EXAMPLES"></a>
+<h3>Examples for WRKXDBPRF</h3>
+<p><b>Example 1: Showing the profiles</b>
+</p>
+<p>
+<pre>
+WRKXDBPRF
+</pre>
+</p>
+<p>This command shows the list of the connection profiles.
+</p>
+<p><b>Example 2: Making a PostgreSQL database available</b>
+</p>
+<ol>
+<li>Run WRKXDBPRF and press F6. Type RDB name SALESPG, database type PG, the host, the database and the user, and press Enter.
+</li>
+<li>Press F10 and type the password twice.
+</li>
+<li>Back on the list, type 9 next to SALESPG. The window shows the version of the server.
+</li>
+<li>Type 8 next to SALESPG to add the RDB directory entry.
+</li>
+<li>In interactive SQL, or in a program created with RDB(SALESPG), run CONNECT TO SALESPG.
+</li>
+</ol>
+<p><b>Example 3: Installing XDBARDDRV from a package</b>
+</p>
+<p>
+<pre>
+CRTLIB LIB(XDB)
+RSTOBJ OBJ(*ALL) SAVLIB(CESCO2) DEV(*SAVF) SAVF(QGPL/XDBSAVF)
+       RSTLIB(XDB)
+ADDLIBLE LIB(XDB)
+WRKXDBPRF
+</pre>
+</p>
+<p>The Setup display is shown because the profile files are not there yet. F10 goes through what is to do; every step shows its commands and waits for Enter.
+</p>
+<p><b>Example 4: Closing a database for a while</b>
+</p>
+<p>Type 2 next to the profile and set Status to D. Every CONNECT TO is refused until the status is A again. Connections that are open go on.
+</p>
+</div>
+<table width="100%">
+<tr><td align="right"><a href="#WRKXDBPRF.Top_Of_Page">Top</a></td></tr>
+</table>
+<hr width="100%" size="2">
+<div> <a name="WRKXDBPRF.ERROR.MESSAGES"></a>
+<h3>Error messages for WRKXDBPRF</h3>
+<p><b><u>*ESCAPE Messages</u></b>
+</p>
+<p>None. What the command has to say is shown on the message line of its displays.
+</p>
+</div>
+<table width="100%">
+<tr><td align="right"><a href="#WRKXDBPRF.Top_Of_Page">Top</a></td></tr>
+</table>
+</body>
+</html>
