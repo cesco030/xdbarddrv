@@ -22,19 +22,19 @@ ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1
 > E s1 i:5|/tmp/xdb_lobm/empty.bin|/tmp/xdb_lobm/empty.bin
 ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
   rows=1
-> Q select id, length(body) as bytes, md5(body) as body_md5, char_length(note) as chars, md5(note) as 
+> Q select id, length(body) as bytes, sha2(body, 256) as body_sum, char_length(note) as chars, sha2(no
 ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 656 
   col id type 497 len 4 ccsid 0
   col bytes type 493 len 8 ccsid 0
-  col body_md5 type 449 len 32 ccsid 280
+  col body_sum type 449 len 64 ccsid 280
   col chars type 493 len 8 ccsid 0
-  col note_md5 type 449 len 32 ccsid 280
+  col note_sum type 449 len 64 ccsid 280
 AROC0100 -> sqlcode 0 sqlstate 00000 outlen 352 
-  row: 1 1000 [afe9324167484bf844c569edcfe8ab32] <null> <null>
-  row: 2 1048576 [639d38fd99a308c92f012a859e63f68f] 87 [7ce00b632326131b8b2a77b115a20c07]
-  row: 3 1048577 [cdae2d7bc0c326a027763e8c609a7675] 1740000 [367b46286fd46b0b44efccdbda12f13d]
-  row: 4 20971643 [39aa25241ee9de226603919b370c5487] 60 [25d4116761c1d2fc8a98c1d971e4f449]
-  row: 5 0 [d41d8cd98f00b204e9800998ecf8427e] 0 [d41d8cd98f00b204e9800998ecf8427e]
+  row: 1 1000 [f501e1f44400e05fe32138f86eb5a79339eda256ea22b2b84fe5817a31d378ed] <null> <null>
+  row: 2 1048576 [84d0b7b03ea9d90476e0a6df8948826e80ec8540a6fd083136512887aef9a0b2] 87 [b1bebca77fca2e7d70cb9c670aeefbd5683a7889b2cf615c25a251d226b43376]
+  row: 3 1048577 [2a5e5532180a5a18c242d04351c7e61c2e9c67ddac14777109c7f330598f1f6c] 1740000 [3793bb33b6bd3663269b20970a4de9c9bff065dbba5e44b794c31652f08fab5b]
+  row: 4 20971643 [86046f5cce5ea1bd774b25e32a21825cd2929474b62e57b0b1fc1625cc377080] 60 [b4e39f1c191ee4a9e2b0e4f1888451a4eaf3a19a21f264762a6764c32ff8fd97]
+  row: 5 0 [e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855] 0 [e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855]
 ARFC0100 -> sqlcode 100 sqlstate 02000 
   total rows=5 in 1 fetch calls
 ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -55,13 +55,13 @@ ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
-   md5 of small.bin: afe9324167484bf844c569edcfe8ab32
-   md5 of piece.bin: 639d38fd99a308c92f012a859e63f68f
-   md5 of over.bin: cdae2d7bc0c326a027763e8c609a7675
-   md5 of big.bin: 39aa25241ee9de226603919b370c5487
-   md5 of small.txt: 7ce00b632326131b8b2a77b115a20c07
-   md5 of big.txt: 367b46286fd46b0b44efccdbda12f13d
-   md5 of latin.txt: 25d4116761c1d2fc8a98c1d971e4f449
+   sha256 of small.bin: f501e1f44400e05fe32138f86eb5a79339eda256ea22b2b84fe5817a31d378ed
+   sha256 of piece.bin: 84d0b7b03ea9d90476e0a6df8948826e80ec8540a6fd083136512887aef9a0b2
+   sha256 of over.bin: 2a5e5532180a5a18c242d04351c7e61c2e9c67ddac14777109c7f330598f1f6c
+   sha256 of big.bin: 86046f5cce5ea1bd774b25e32a21825cd2929474b62e57b0b1fc1625cc377080
+   sha256 of small.txt: b1bebca77fca2e7d70cb9c670aeefbd5683a7889b2cf615c25a251d226b43376
+   sha256 of big.txt: 3793bb33b6bd3663269b20970a4de9c9bff065dbba5e44b794c31652f08fab5b
+   sha256 of latin.txt: b4e39f1c191ee4a9e2b0e4f1888451a4eaf3a19a21f264762a6764c32ff8fd97
    out1.bin = small.bin
    out2.bin = piece.bin
    out3.bin = over.bin
@@ -90,7 +90,7 @@ AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160
 > F c1
 ARFC0100 -> sqlcode 0 sqlstate 00000 outlen 3020 
   rows=1
-  row: 1048577 []
+  row: 1048577 [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx... 3000 bytes]
 > K c1
 ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
 > O c1 select put_blob_to_file(body, ?, 8) as new_file from xdb_doc ## /tmp/xdb_lobm/out_new.bin
@@ -181,26 +181,26 @@ ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 272
   col n type 493 len 8 ccsid 0
   col filler type 449 len 900 ccsid 280
 AROC0100 -> sqlcode 0 sqlstate 00000 outlen 160 
-  row: 2 []
-  row: 2 []
-  row: 2 []
-  row: 2 []
-  row: 2 []
-  row: 2 []
-  row: 2 []
-  row: 2 []
-  row: 2 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
-  row: 3 []
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 2 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  row: 3 [yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 ARFC0100 -> sqlcode 100 sqlstate 02000 
   total rows=300 in 9 fetch calls
 ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -365,14 +365,14 @@ ARXP0100 -> sqlcode -803 sqlstate 23505 outlen 1 {xdb_doc.PRIMARY|*N|*N|*N}
 > E s1 i:2|/tmp/xdb_lobm/small.bin
 ARXP0100 -> sqlcode 0 sqlstate 00000 outlen 1 
   rows=1
-> Q select id, length(body) as bytes, md5(body) as body_md5 from xdb_doc order by id
+> Q select id, length(body) as bytes, sha2(body, 256) as body_sum from xdb_doc order by id
 ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 400 
   col id type 497 len 4 ccsid 0
   col bytes type 493 len 8 ccsid 0
-  col body_md5 type 449 len 32 ccsid 280
+  col body_sum type 449 len 64 ccsid 280
 AROC0100 -> sqlcode 0 sqlstate 00000 outlen 224 
-  row: 1 1048577 [cdae2d7bc0c326a027763e8c609a7675]
-  row: 2 1000 [afe9324167484bf844c569edcfe8ab32]
+  row: 1 1048577 [2a5e5532180a5a18c242d04351c7e61c2e9c67ddac14777109c7f330598f1f6c]
+  row: 2 1000 [f501e1f44400e05fe32138f86eb5a79339eda256ea22b2b84fe5817a31d378ed]
 ARFC0100 -> sqlcode 100 sqlstate 02000 
   total rows=2 in 1 fetch calls
 ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
@@ -444,7 +444,7 @@ ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0
 > ROLLBACK
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
-   md5 of small.bin: afe9324167484bf844c569edcfe8ab32
+   sha256 of small.bin: f501e1f44400e05fe32138f86eb5a79339eda256ea22b2b84fe5817a31d378ed
    out_x.bin = over.bin
    (out_x.bin is the first column of a row whose second column failed: complete, so it stays)
    out_y1.bin = over.bin

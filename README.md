@@ -1,5 +1,12 @@
 # XDBARDDRV - external databases through CONNECT TO on IBM i
 
+> **Download:** the newest package is on the
+> **[latest release](https://github.com/cesco030/xdbarddrv/releases/latest)**
+> page - one file, the save file with the objects
+> (`xdb-<version>-objects.savf`). What to do with it:
+> [Installing](#installing), or [Updating](#updating) over a version that
+> is installed.
+
 XDBARDDRV lets SQL on IBM i work with databases that are not Db2. After
 `CONNECT TO name`, the statements of interactive SQL (STRSQL) or of a program
 with embedded SQL run on a **PostgreSQL**, **MySQL** or **Microsoft SQL
@@ -737,7 +744,7 @@ RST DEV('/QSYS.LIB/QGPL.LIB/XDBSRC.FILE')
 | `ile/` | ILE port layer of libpq |
 | `prf/` | WRKXDBPRF: DDS generator, RPG program, setup module, command, help panel group, option dictionary |
 | `build/` | QSH build scripts: `build_ile.sh` and `bind_ile.sh` (libpq), `build_xdb.sh` (driver), `build_prf.sh` (profiles, command, help), `dist.sh` (this package), `trial_all.sh` and `trial_upd.sh` (try a package in the build library: a first install, and an update of an installed older version); `gen_notices.py` writes the notices file from the sources of `pg/` |
-| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`) and of the statements PostgreSQL runs only outside a transaction (`alonetest_pg.sh`), the Linux tests of option `fetch_rows` (`fetchtest.sh`) and of decimal columns of more than 31 digits (`dectest.sh`), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
+| `test/` | Linux test harness of the driver core and backends, batch tests of the setup, of the allowed users check and of the file functions (`lobtest.sh` for PostgreSQL, `lobtest_my.sh` for MySQL, `lobtest_ms.sh` for SQL Server, each with the servers it needs named at its top; on IBM i `xdbt32.sqlrpgle` with `build/x32.sh` for any of the three kinds of server, with a file of the size you name, and for PostgreSQL also `xdbt30.sqlrpgle` with `build/x30.sh` and `xdbt31.sqlrpgle` with `build/x31.sh`), the Linux tests of the connection facts (`infotest.sh`) and of stored procedures and the other statements that return rows when they run (`proctest_my.sh`, `proctest_ms.sh`, `proctest_pg.sh`) and of the statements PostgreSQL runs only outside a transaction (`alonetest_pg.sh`), the Linux tests of option `fetch_rows` (`fetchtest.sh`) and of decimal columns of more than 31 digits (`dectest.sh`), four tests that want a real SQL Server (its free Developer edition for Linux will do; each names what it needs at its top): `mstypes.py` (every data type of the server against the text the server makes of the value), `msparams.py` (every kind of host variable into every type of column, against the same value written as a literal by another client), `msrows.py` (thousands of rows of every shape, each value computed from the number of its row) and `tdsfuzz.py` (the answers of the server damaged on their way, to see that the driver ends with an error and nothing worse), the same four kinds of test for PostgreSQL and for MySQL / MariaDB, which take the server from the environment and so run against any version (`pgtypes.py`, `pgparams.py`, `pgrows.py`, `mytypes.py`, `myparams.py`, `myrows.py`, `dbfuzz.py` for both; `xdbqa.py` is what they share) and `sqltext.py` for all three kinds of server (statements with question marks in literals, quoted names, comments and dollar-quoted text, where no marker must be found), and five sample RPG programs: `xdbdemo.sqlrpgle` (a query printed), `xdbetl.sqlrpgle` with `build/xetl.sh` (three servers and Db2 in one program, see "Copying rows to Db2"), `xdbinfo.sqlrpgle` with `build/xinfo.sh` (what a connection is), `xdbproc.sqlrpgle` with `build/xproc.sh` (stored procedures of a MySQL server) and the tool `xdbrun.sqlrpgle` with `build/xrun.sh` (the statements of a stream file through the driver, see "Trying a statement") |
 | `doc/` | this file, `THIRD-PARTY-NOTICES.txt` and, in `img/`, the pictures of the displays shown at the top of this file |
 
 To build in a library of your own (ILE C and ILE RPG compilers needed), from
@@ -783,14 +790,47 @@ version; everything else ran only on Linux test servers or not at all.
 | | PostgreSQL | MySQL / MariaDB | Microsoft SQL Server |
 |---|---|---|---|
 | Tried from IBM i | 9.6, 14, 19 | MySQL 8.4 | SQL Server 2019 |
-| Tried on Linux only | 16 | MySQL 8.0 | Babelfish for PostgreSQL (speaks the protocol of SQL Server at the levels of 2000 and of 2012 and later) |
-| Not tried | versions before 9.6 | MariaDB, MySQL 5.x, Aurora | SQL Server 2000 to 2017, 2022, 2025, Azure SQL |
-| Sign-on that works | user and password, with the methods `scram-sha-256`, `md5` and `password` of `pg_hba.conf`; `trust` | user and password, with the plugins `mysql_native_password` and `caching_sha2_password` | a SQL Server login (user and password) |
-| Sign-on that does not | Kerberos / GSSAPI, SSPI, client certificates, OAuth | `sha256_password`, `ed25519` of MariaDB, Kerberos, LDAP / PAM plugins that want the password in clear, the RSA exchange of `caching_sha2_password` (the first login of a user after a server start then needs an encrypted connection) | Windows logins (NTLM, Kerberos), Microsoft Entra ID |
-| Encryption | **none**: the PostgreSQL client library of the package is built without TLS. Encryption *OFF or *PREFER; with *REQUIRE or *VERIFY the connection fails. A server that only takes encrypted connections (`hostssl`, most cloud services) cannot be reached | TLS of the system (GSKit): *PREFER, *REQUIRE, and *VERIFY against the certificate store *SYSTEM | **SQL Server 2019 and older: none**, and the password of the login travels only scrambled, not encrypted. SQL Server 2022 and later: `encrypt` = strict (TDS 8.0), not tried. A server that forces encryption at the older protocol refuses the connection |
+| Tried on Linux only | every major version from 9.2 to 19 | MySQL 5.5, 5.6, 5.7, 8.0, 8.4, 9.7; MariaDB 5.5, 10.1, 10.3, 10.6, 10.11, 11.4, 11.8 | SQL Server 2025 (the Linux build of Microsoft), at both protocol levels and with `encrypt` = strict; Babelfish for PostgreSQL (speaks the protocol of SQL Server at the levels of 2000 and of 2012 and later) |
+| Not tried | versions before 9.2 | MySQL 5.1 and older, releases after 9.7, Aurora | SQL Server 2000 to 2017, 2022, Azure SQL |
+| Sign-on that works | user and password, with the methods `scram-sha-256`, `md5` and `password` of `pg_hba.conf`; `trust` | user and password, with the plugins `mysql_native_password`, `caching_sha2_password` and, on an encrypted connection only, `sha256_password` | a SQL Server login (user and password) |
+| Sign-on that does not | Kerberos / GSSAPI, SSPI, client certificates, OAuth | `ed25519` and `parsec` of MariaDB, Kerberos, LDAP / PAM plugins that want the password in clear (`mysql_clear_password`, `dialog`), logins with more than one factor (MySQL 8.0.27 and later), a login whose password has expired (the server refuses it with its message 1862), the RSA exchange of `caching_sha2_password` and `sha256_password` (see below) | Windows logins (NTLM, Kerberos), Microsoft Entra ID |
+| Encryption | **none**: the PostgreSQL client library of the package is built without TLS. Encryption *OFF or *PREFER; with *REQUIRE or *VERIFY the connection fails. A server that only takes encrypted connections (`hostssl`, most cloud services) cannot be reached | TLS of the system (GSKit): *PREFER, *REQUIRE, and *VERIFY against the certificate store *SYSTEM | **SQL Server 2019 and older: none**, and the password of the login travels only scrambled, not encrypted. SQL Server 2022 and later: `encrypt` = strict (TDS 8.0, the whole connection in TLS), tried on Linux against SQL Server 2025 and not yet from an IBM i. A server that forces encryption at the older protocol refuses the connection |
+| What *VERIFY checks | - | that the certificate of the server was issued by an authority the store *SYSTEM trusts. **Not** that it was issued for the host name of the profile | the same (`tls_verify` = on, or Encryption *VERIFY) |
 | Also not there | COPY from or to the program, LISTEN / NOTIFY | LOAD DATA LOCAL; a statement of 16 MB or more | named instances (give the port), failover partner, redirection by an Azure gateway, results with COMPUTE BY |
 
-No statement has a timeout of its own and none can be cancelled: a
+**MySQL 8.0 and later** make their logins with `caching_sha2_password`
+unless told otherwise; MySQL 8.4 has `mysql_native_password` switched
+off and MySQL 9 has it no more. The first sign-on of such a login after
+the server was started (or after its logins were changed) needs an
+encrypted connection: give the profile Encryption *PREFER or *REQUIRE.
+Without it the connection fails with SQLSTATE 28000 and a message that
+names the plugin and says that it needs TLS; once the server has the
+login in its cache, a connection without encryption signs on too. A
+`sha256_password` login needs the encrypted connection every time.
+MySQL 8.4 and 9 ask for `sha256_password` also when they do not know
+the user: a mistyped user name on a connection without encryption gets
+that message there, and "Access denied" on an encrypted one.
+
+**Character set and collation of a MySQL session.** The driver talks
+utf8mb4 to every server and signs on with the collation
+`utf8mb4_general_ci` (MariaDB from 11.5 on makes its own default of it,
+`utf8mb4_uca1400_ai_ci`). Where a column is compared with a literal or a
+parameter marker the collation of the column counts, so most programs
+never notice. The collation of the session decides for a value that has
+none of a column: a variable of the session (`@v`), the result of
+`CAST(... AS CHAR)`. On MySQL 8.0 and later, whose utf8mb4 tables are
+`utf8mb4_0900_ai_ci` unless told otherwise, comparing such a value with
+a column ends with error 1267, "Illegal mix of collations". Option
+`init_sql` with `SET NAMES utf8mb4` gives the session the collation the
+server gives the character set, and the comparison works (the client
+library of MySQL 9.7 gives a utf8mb4 session that collation as well).
+
+The time a connection may take (Timeout of the profile) is the time the
+whole sign-on may take, the encryption handshake included: a server that
+takes the connection and then says nothing ends it with SQLCODE -30080
+(for PostgreSQL the client library has always done so; for MySQL and SQL
+Server since 0.9.10). After the sign-on nothing has a time limit. No
+statement has a timeout of its own and none can be cancelled: a
 statement that waits for a lock on the server waits as long as the lock is
 held. On SQL Server and MySQL option `init_sql` can set a limit for the
 session (`SET LOCK_TIMEOUT 60000`, `SET SESSION innodb_lock_wait_timeout =
@@ -804,29 +844,112 @@ in a VARCHAR of the text length of the profile.
 | Db2 type the program sees | PostgreSQL | MySQL / MariaDB | SQL Server |
 |---|---|---|---|
 | SMALLINT | `smallint`; `boolean` as 0 / 1 | `tinyint`, `smallint`, `year` | `tinyint`, `smallint`; `bit` as 0 / 1 |
-| INTEGER | `integer`, `oid` | `mediumint`, `int`; `smallint unsigned` | `int` |
-| BIGINT | `bigint` | `bigint`, `bit`; `int unsigned` | `bigint` |
-| DECIMAL(p,s), 31 digits at most (see "Limits") | `numeric(p,s)`; `numeric` without a precision as DECIMAL(31, numeric scale of the profile) | `decimal(p,s)`; `bigint unsigned` as DECIMAL(20,0) | `decimal`, `numeric`; `money` as DECIMAL(19,4), `smallmoney` as DECIMAL(10,4) |
+| INTEGER | `integer` | `mediumint`, `int`; `smallint unsigned` | `int` |
+| BIGINT | `bigint`; `oid` (it has no sign: half of its values have no room in an INTEGER) | `bigint`, `bit` up to 63 bits; `int unsigned` | `bigint` |
+| DECIMAL(p,s), 31 digits at most (see "Limits") | `numeric(p,s)`; `numeric` without a precision as DECIMAL(31, numeric scale of the profile) | `decimal(p,s)`; `bigint unsigned` and `bit(64)` as DECIMAL(20,0) | `decimal`, `numeric`; `money` as DECIMAL(19,4), `smallmoney` as DECIMAL(10,4) |
 | DOUBLE | `real`, `double precision` | `float`, `double` | `real`, `float` |
 | DATE | `date` | `date` | `date` |
 | TIME (seconds: a fraction is left off) | `time` | `time` | `time` |
 | TIMESTAMP (microseconds) | `timestamp`, `timestamptz` | `datetime`, `timestamp` | `datetime`, `smalldatetime`, `datetime2` (a seventh digit is left off) |
 | CHAR(n) | `char(n)`; `uuid` as CHAR(36) | `char(n)` | `char(n)`, `nchar(n)`; `uniqueidentifier` as CHAR(36) |
-| VARCHAR(n) | `varchar(n)`; `name` | `varchar(n)`, `enum`, `set` | `varchar(n)`, `nvarchar(n)`; `datetimeoffset` as text |
+| VARCHAR(n) | `varchar(n)`; `name` | `varchar(n)`, `enum`, `set` | `varchar(n)`, `nvarchar(n)`; `datetimeoffset` as text, with the fraction digits of its type |
 | VARCHAR of the text length of the profile (1000 unless changed, 32000 at most; longer values are cut) | `text`, `json`, `jsonb`, `xml`, arrays, `interval`, network and geometric types, ranges, enums | `text` of every size, `json` | `varchar(max)`, `nvarchar(max)`, `text`, `ntext`, `xml`, `sql_variant` |
-| VARCHAR with two hexadecimal digits for every byte | `bytea` (in the text form of the server, `\x...`) | `binary`, `varbinary`, `blob` of every size | `binary`, `varbinary`, `varbinary(max)`, `image`, `timestamp` / `rowversion`, CLR types such as `hierarchyid` and `geography` |
+| VARCHAR with two hexadecimal digits for every byte | `bytea` (in the text form of the server, `\x...`) | `binary`, `varbinary`, `blob` of every size, `geometry` and the other spatial types, `vector` (MySQL 9, MariaDB 11.7 and later: four bytes for every number, low byte first) | `binary`, `varbinary`, `varbinary(max)`, `image`, `timestamp` / `rowversion`, CLR types such as `hierarchyid` and `geography` |
 
 Whole long values, text or bytes, travel through stream files with the
 file functions (see "Large values"); no column arrives as a BLOB, CLOB or
 DBCLOB, and Db2 XML, DECFLOAT, BINARY and array types are not used.
 
+A value Db2 has no place for arrives as a value that could not be
+converted (indicator -2; the other columns of its row are there), never
+as another value:
+
+- the values `NaN`, `Infinity` and `-Infinity` of the floating point
+  types and of `numeric` (PostgreSQL);
+- a date or timestamp before the year 1 or after 9999, `infinity` and
+  `-infinity` (PostgreSQL), the dates `0000-00-00` and those with a month
+  or day of zero, a `time` of more than 24 hours or below zero (MySQL /
+  MariaDB);
+- a decimal with more digits before the point than the 31 of Db2 leave
+  (see "Limits").
+
+A floating point column arrives with all its digits on every version of
+PostgreSQL (before version 12 a server leaves the last ones off unless
+the session asks, which the driver does). A single-precision column (the
+`float` of MySQL, the `real` of SQL Server and of PostgreSQL from 12 on)
+arrives as the shortest number that gives its four bytes back: 0.1 for a
+column that holds 0.1, not 0.100000001, the same rule as for a REAL host
+variable. PostgreSQL before 12 hands a `real` over with nine digits.
+
 ### Values a program passes (parameter markers)
 
-Character, numeric, date, time and timestamp host variables. A numeric
-host variable is passed as a number, a date or timestamp as one; on SQL
-Server a character value goes as `varchar` when every character of it is
-in the code page of the server and as `nvarchar` otherwise (option
-`string_params`). LOB and file reference variables cannot be passed.
+Character, numeric, date, time and timestamp host variables. LOB and
+file reference variables cannot be passed.
+
+A question mark is a marker wherever the server would not read it as
+part of a literal, a quoted name or a comment: the driver knows the
+dollar-quoted text (`$$ ... $$`, `$tag$ ... $tag$`), the `E'...'`
+strings and the comments inside comments of PostgreSQL, the backslash
+in the literals of MySQL (and that `sql_mode` NO_BACKSLASH_ESCAPES
+switches it off, as `standard_conforming_strings` does on an old
+PostgreSQL), its `#` comments and that `--` begins a comment there only
+before a blank, and the `[names]` and the comments inside comments of
+SQL Server. PostgreSQL has
+operators written with a question mark (`?`, `?|` and `?&` of `jsonb`):
+write the question mark twice where the operator is meant, as with the
+JDBC driver of PostgreSQL (`WHERE doc ?? 'key' AND id = ?`).
+
+**PostgreSQL** gets every value as text and takes its type from the
+place of the marker (`WHERE n = ?`, `VALUES (?, ?)`), as it does for a
+literal in quotes. Where the statement leaves the type open - `SELECT
+?`, `? IS NULL` - the value is passed as text (a server before version
+10 would refuse the first, every version the second; the driver names
+the type itself). Write `CAST(? AS INTEGER)` there when a number is
+meant.
+
+**MySQL and MariaDB** get a numeric host variable as a number (BIGINT,
+DOUBLE or DECIMAL) and everything else as text, which the server reads
+as what the column or the comparison wants. A number can therefore be
+used where text would mean something else: `LIMIT ?`, an `ENUM` by its
+number, a `BIT` column, exact arithmetic with a DECIMAL. A statement
+that is executed once with a number and once with a character value in
+the same place is prepared again in between (MySQL 8.0.22 and later
+keep the type of the first execution).
+
+A `vector` column takes a host variable through the function of the
+server that reads the text form, `STRING_TO_VECTOR(?)` on MySQL and
+`VEC_FromText(?)` on MariaDB with a value like `[1,2,3]`, or its bytes
+through `UNHEX(?)`; a marker alone in its place is refused by both.
+
+A floating point host variable is passed as the shortest decimal number
+that gives the same value back, on all three kinds of server: a DOUBLE
+that holds 0.1 goes as 0.1 and not as 0.1000000000000000055, and so
+does a REAL (4 bytes) - into a REAL column that is the same value, into
+a DOUBLE or DECIMAL column it is 0.1 and not the 0.100000001490116 the
+four bytes hold exactly.
+
+On SQL Server the type a value travels in decides what the server does
+with it, so here is the whole list:
+
+| Host variable | Travels as | Notes |
+|---|---|---|
+| SMALLINT, INTEGER | `int` | |
+| BIGINT | `bigint` | |
+| DECIMAL, NUMERIC (packed, zoned) | `decimal(38,s)` with the scale of the variable | 38 digits at most |
+| FLOAT, REAL, DOUBLE | `float` | a REAL as the shortest number that names it, see above |
+| CHAR, VARCHAR, GRAPHIC, VARGRAPHIC | `varchar` when every character of the value is in the code page of the server, `nvarchar` otherwise (option `string_params`); a longer value as `text` (over 8000 bytes) or `ntext` (over 4000) | the blanks at the end of a CHAR variable are not sent (option `trim_char`) |
+| DATE | `date`; `datetime` on a server before SQL Server 2008 or with option `tds` = 7.1 | every date of Db2 is one on the server, 0001-01-01 included |
+| TIME | a string, `hh:mm:ss`; `time` with option `datetime2` = on | 24:00:00 is not a time on SQL Server |
+| TIMESTAMP | `datetime`, rounded as the server rounds to its 1/300 of a second; `datetime2` with option `datetime2` = on | see below |
+
+A TIMESTAMP goes as `datetime` because of the tables that are there:
+compared with a `datetime` column, a `datetime2` value does not find the
+milliseconds that column holds (on SQL Server 2016 and later .003 is not
+.0030000). The price is that the microseconds of the variable do not
+reach a `datetime2` column: with tables that have `datetime2` columns,
+set option `datetime2` = on in the profile. A timestamp a `datetime`
+cannot hold (before 1753) goes as `datetime2` in both cases; on a server
+that has no such type it is refused with SQLCODE -181.
 
 ### Statements
 
@@ -839,6 +962,32 @@ in the code page of the server and as `nvarchar` otherwise (option
 | A savepoint for every statement, so that a failed one does not end the transaction | yes (option `savepoints`) | not needed | not needed; an error that ends the batch on the server (a conversion error, a deadlock) rolls the whole unit of work back, and the program is told so (SQLCODE -911) |
 | Statements the server runs only outside a transaction (`CREATE DATABASE`, `VACUUM`) | run alone when the unit of work is still empty | - | not yet: error 226 |
 | File functions (`GET_BLOB_FROM_FILE` and the others) | yes | yes | yes |
+| Statements that end the transaction on the server by themselves | none: `CREATE`, `ALTER`, `DROP` belong to the unit of work | `CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `GRANT`, `LOCK TABLES` ..., a procedure that commits: what the unit of work did before is committed with it (the server's rule, also when the statement fails); what it does after is under COMMIT and ROLLBACK again | none for most statements: they belong to the unit of work |
+| A value that does not fit its column (a text too long, a number too large, a date that is none) | error | by the `sql_mode` of the server: without `STRICT_TRANS_TABLES` or `STRICT_ALL_TABLES` the server cuts the text, takes the nearest number or stores a zero date **and reports success**: the program gets SQLCODE 0. See below | error |
+
+**MySQL: units of work.** A session on which units of work run has
+`autocommit` off (the driver turns it off before the first one), and
+COMMIT and ROLLBACK of the program end its transactions. That way a
+transaction the server ended by itself is followed by a new one. With a
+`START TRANSACTION` for every unit of work, as the driver did up to
+0.9.9, everything after a `CREATE TABLE` inside a unit of work was
+committed statement by statement and a ROLLBACK took nothing back.
+`XDB CONNECTION INFO` shows `autocommit` `off` on such a session; its
+line `state` says `in a transaction` from the first statement that reads
+or changes a table.
+
+**MySQL: values that do not fit.** A server from 5.7 on is strict unless
+its administrator changed `sql_mode`; an older one, and many that were
+upgraded with their settings, are not. `select @@sql_mode` through the
+connection tells. A session becomes strict with option `init_sql`:
+
+```
+SET SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES')
+```
+
+(with the collation of above in one statement: `SET NAMES utf8mb4,
+SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES')`). The
+driver does not look at the warnings of the server.
 
 ## Limits
 
@@ -878,7 +1027,26 @@ in the code page of the server and as `nvarchar` otherwise (option
   scale above 31 loses its last digits.
 - Character data is converted to the CCSID of the job (or the one of the
   profile); characters that CCSID does not have arrive as a substitution
-  character. Long text is cut at the text length of the profile.
+  character. Long text is cut at the text length of the profile. With
+  CCSID 1208 (UTF-8) in the profile no character is lost, and a column is
+  as long in bytes as its longest value can be: `nvarchar(50)` arrives as
+  VARCHAR(150), a `varchar(50)` of PostgreSQL or MySQL as VARCHAR(200). A
+  job whose CCSID has double-byte characters (Japanese, Chinese, Korean)
+  should use such a profile: in the CCSID of the job the columns are as
+  long as their number of characters, and longer values are cut.
+- Db2 takes a row of 32 K at the most from a driver; a query whose columns
+  add up to more does not open (SQL0809, "Row length exceeds 3.5
+  gigabytes" - the text is that of the message, the limit is the 32 K).
+  The room a UTF-8 profile gives its columns is therefore given only
+  while the row keeps within that. In a query where it would not - two
+  columns of 12000 characters, for one - every column is as long as its
+  number of characters, as it was up to 0.9.9, and a value whose UTF-8
+  bytes are more than that is cut. A program that needs the room there
+  asks for it column by column: `CAST(col AS CHAR(n))` (or `VARCHAR(n)`)
+  with a larger n, as long as the row stays below the limit.
+- Encryption *VERIFY checks who issued the certificate of the server, not
+  the name it was issued for: a certificate of any server from the same
+  authority passes.
 - Large objects are not carried by the interface Db2 calls the driver
   through. A long column (text, json, bytea, varchar(max)) arrives as a
   character value of the text length of the profile, 32000 at most; it can

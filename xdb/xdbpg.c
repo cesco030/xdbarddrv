@@ -72,6 +72,8 @@ typedef struct
 	int			has_long;		/* result has columns of unbounded length */
 	int			runs;			/* no query: it returns its rows when it is run (run_at_open) */
 	int			ncols;			/* columns the server described */
+	Oid		   *pt;				/* markers the driver had to give a type (see open_marker), or NULL */
+	int			npt;			/* how many entries pt has; 0 in it: left to the server */
 } pgstmt;
 
 typedef struct pgcur
@@ -121,7 +123,18 @@ static int	run(pgc *c, const char *sql, xbe_err *e);
 static void
 session_setup(pgc *c)
 {
-	run(c, "SET datestyle TO ISO; SET intervalstyle TO postgres; SET bytea_output TO hex", NULL);
+	/*
+	 * The settings the driver reads values by: dates and intervals in the
+	 * one form it knows, bytes in hexadecimal, floating point numbers with
+	 * all their digits (before version 12 a server leaves the last ones off
+	 * unless asked).  One statement for all, and only for the settings the
+	 * server has: an old server that lacks one keeps the others (three SET
+	 * statements in one request would all be undone by the one that fails).
+	 * extra_float_digits goes to the highest value the server takes.
+	 */
+	run(c, "SELECT set_config(p.name, CASE WHEN p.name = 'extra_float_digits' THEN p.max_val ELSE s.v END, false) "
+		"FROM (VALUES ('datestyle', 'ISO'), ('intervalstyle', 'postgres'), ('bytea_output', 'hex'), "
+		"('extra_float_digits', '3')) AS s(n, v) JOIN pg_settings p ON lower(p.name) = s.n", NULL);
 }
 
 /*
@@ -219,6 +232,95 @@ run(pgc *c, const char *sql, xbe_err *e)
 		set_err(c, r, e);
 	PQclear(r);
 	return ok ? 0 : -1;
+}
+
+/*
+ * The driver sends the value of every marker as text and leaves its type to
+ * the server, which takes it from where the marker stands ("where n = ?").
+ * Where the statement leaves the type open the server refuses the statement
+ * (42P18, "could not determine data type of parameter $1"): "? is null" on
+ * every version, "select ?" on those before 10, which since then take such
+ * a marker as text.  The driver does the same for all of them: the marker
+ * the server names is declared as text and the statement is prepared again,
+ * until the server has no marker left to name.  This is the number in the
+ * message, 0 when the error is another one; the text of the message is in
+ * the language of the server, the "$1" in it is not.
+ */
+static int
+open_marker(const PGresult *r)
+{
+	const char *st = r ? PQresultErrorField(r, PG_DIAG_SQLSTATE) : NULL;
+	const char *m = r ? PQresultErrorField(r, PG_DIAG_MESSAGE_PRIMARY) : NULL;
+
+	if (st == NULL || m == NULL || strcmp(st, "42P18") != 0)
+		return 0;
+	for (; *m; m++)
+		if (m[0] == '$' && m[1] >= '1' && m[1] <= '9')
+		{
+			long		n = strtol(m + 1, NULL, 10);
+
+			return (n >= 1 && n <= 32767) ? (int) n : 0;
+		}
+	return 0;
+}
+
+#define PG_TEXT 25				/* the type "text" */
+
+/*
+ * Prepare the statement as the unnamed one, giving a type to the markers
+ * the server cannot type itself.  The failed attempt has done nothing on
+ * the server, but inside a transaction it has stopped it: it goes back to
+ * the savepoint the core has set right before this statement.  Without
+ * that savepoint the first answer of the server stands.
+ */
+static PGresult *
+prepare_typed(pgc *c, const char *sql, Oid **pt, int *npt)
+{
+	PGresult   *r;
+
+	for (;;)
+	{
+		int			n;
+		Oid		   *t;
+
+		r = PQprepare(c->pg, "", sql, *npt, *pt);
+		if (PQresultStatus(r) == PGRES_COMMAND_OK || PQstatus(c->pg) != CONNECTION_OK)
+			return r;
+		n = open_marker(r);
+		if (n == 0 || (n <= *npt && (*pt)[n - 1] != 0))
+			return r;
+		if (PQtransactionStatus(c->pg) == PQTRANS_INERROR &&
+			(!c->sp || run(c, "ROLLBACK TO SAVEPOINT xdb_sp", NULL) < 0))
+			return r;
+		if (n > *npt)
+		{
+			t = realloc(*pt, (size_t) n * sizeof(Oid));
+			if (t == NULL)
+				return r;
+			memset(t + *npt, 0, (size_t) (n - *npt) * sizeof(Oid));
+			*pt = t;
+			*npt = n;
+		}
+		(*pt)[n - 1] = PG_TEXT;
+		PQclear(r);
+	}
+}
+
+/* PQexecParams with the types the statement was prepared with */
+static PGresult *
+exec_typed(pgc *c, const pgstmt *st, const char *sql, int np, char **pv)
+{
+	Oid		   *t = NULL;
+	PGresult   *r;
+	int			i;
+
+	if (st && st->npt > 0 && np > 0)
+		t = calloc((size_t) np, sizeof(Oid));
+	for (i = 0; t && i < np && i < st->npt; i++)
+		t[i] = st->pt[i];
+	r = PQexecParams(c->pg, sql, np, t, (const char *const *) pv, NULL, NULL, 0);
+	free(t);
+	return r;
 }
 
 /*
@@ -347,7 +449,7 @@ pg_exec(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 	if (alive(c, e) < 0)
 		return -1;
 	if (np > 0)
-		r = PQexecParams(c->pg, sql, np, NULL, (const char *const *) pv, NULL, NULL, 0);
+		r = exec_typed(c, stmt, sql, np, pv);
 	else
 		r = PQexec(c->pg, sql);
 	if (is_copy(r))
@@ -608,10 +710,10 @@ col_of(const PGresult *r, int i, xbe_col *x)
 			x->kind = XK_BOOL;
 			break;
 		case 23:
-		case 26:
 			x->kind = XK_INTEGER;
 			break;
 		case 20:
+		case 26:				/* oid: 32 bits without a sign */
 			x->kind = XK_BIGINT;
 			break;
 		case 700:
@@ -642,11 +744,13 @@ col_of(const PGresult *r, int i, xbe_col *x)
 			break;
 		case 19:
 			x->kind = XK_VARCHAR;
-			x->len = 63;
+			x->len = 63;		/* a name: 63 bytes, however many characters */
+			x->u8 = 1;
 			break;
 		case 2950:			/* uuid */
 			x->kind = XK_CHAR;
 			x->len = 36;
+			x->u8 = 1;
 			break;
 		default:
 			x->kind = XK_VARCHAR;
@@ -665,6 +769,8 @@ pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 				n;
 	int			sink[LOB_MAXSINK];
 	int			nsink = c->nsink;
+	Oid		   *pt = NULL;
+	int			npt = 0;
 
 	/* the file columns announced for this statement, and for no other */
 	memcpy(sink, c->sink, sizeof sink);
@@ -674,11 +780,12 @@ pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 	*stmt = NULL;
 	if (alive(c, e) < 0)
 		return -1;
-	r = PQprepare(c->pg, "", sql, 0, NULL);
+	r = prepare_typed(c, sql, &pt, &npt);
 	if (PQresultStatus(r) != PGRES_COMMAND_OK)
 	{
 		set_err(c, r, e);
 		PQclear(r);
+		free(pt);
 		recover(c, e);
 		return -1;
 	}
@@ -688,6 +795,7 @@ pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 	{
 		set_err(c, r, e);
 		PQclear(r);
+		free(pt);
 		recover(c, e);
 		return -1;
 	}
@@ -698,6 +806,13 @@ pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 		col_of(r, i, &(*cols)[i]);
 	*ncols = n;
 	st = calloc(1, sizeof(pgstmt));
+	if (st)
+	{
+		st->pt = pt;
+		st->npt = npt;
+	}
+	else
+		free(pt);
 	if (st && n > 0)
 	{
 		st->wsql = wrap_long(c, sql, r, &st->has_long, sink, nsink);
@@ -713,7 +828,7 @@ pg_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 
 			if (intx)
 				run(c, "SAVEPOINT xdb_w", NULL);
-			v = PQprepare(c->pg, "", st->wsql, 0, NULL);
+			v = PQprepare(c->pg, "", st->wsql, st->npt, st->pt);
 			if (PQresultStatus(v) != PGRES_COMMAND_OK || PQstatus(c->pg) != CONNECTION_OK)
 			{
 				free(st->wsql);
@@ -744,6 +859,7 @@ pg_stmt_free(void *vc, void *stmt)
 	if (st)
 	{
 		free(st->wsql);
+		free(st->pt);
 		free(st);
 	}
 }
@@ -756,14 +872,14 @@ pg_stmt_free(void *vc, void *stmt)
  * rows leaves a cursor of no columns, which the core refuses.
  */
 static int
-run_at_open(pgc *c, const char *sql, int np, char **pv, void **cur, xbe_err *e)
+run_at_open(pgc *c, const pgstmt *st, const char *sql, int np, char **pv, void **cur, xbe_err *e)
 {
 	pgcur	   *k = calloc(1, sizeof(pgcur));
 	PGresult   *r;
 
 	if (k == NULL)
 		return -1;
-	r = PQexecParams(c->pg, sql, np, NULL, (const char *const *) pv, NULL, NULL, 0);
+	r = exec_typed(c, st, sql, np, pv);
 	if (is_copy(r))
 	{
 		end_copy(c, r);
@@ -845,7 +961,7 @@ pg_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 			snprintf(e->msg, sizeof e->msg, "the statement returns no rows: there is nothing to fetch, and it was not run");
 			return -1;
 		}
-		return run_at_open(c, sql, np, pv, cur, e);
+		return run_at_open(c, st, sql, np, pv, cur, e);
 	}
 	if (st && st->wsql)
 		sql = st->wsql;
@@ -862,7 +978,7 @@ pg_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 	k->epoch = (!hold && c->sp) ? c->epoch : -1;
 	k->small = st && st->has_long && st->wsql == NULL;
 	sprintf(q, "DECLARE %s CURSOR %sFOR %s", k->name, hold ? "WITH HOLD " : "", sql);
-	r = PQexecParams(c->pg, q, np, NULL, (const char *const *) pv, NULL, NULL, 0);
+	r = exec_typed(c, st, q, np, pv);
 	free(q);
 	if (PQresultStatus(r) != PGRES_COMMAND_OK)
 	{
@@ -1568,11 +1684,25 @@ pg_info(void *vc, xbe_info_add add, void *ctx)
 	add(ctx, "options", "lob_direct", v);
 }
 
+/* how PostgreSQL reads statement text (see XTF_* in xdb_be.h) */
+static int
+pg_text_flags(void *vc)
+{
+	pgc		   *c = vc;
+	int			f = XTF_ESTRING | XTF_DOLLAR | XTF_NESTED | XTF_QQ;
+	const char *scs = c && c->pg ? PQparameterStatus(c->pg, "standard_conforming_strings") : "on";
+
+	/* off (the default before 9.1; gone with 19): every literal is read as E'...' is */
+	if (scs == NULL || strcmp(scs, "on") != 0)
+		f |= XTF_BACKSLASH;
+	return f;
+}
+
 const xbe_driver xbe_pg = {
 	"pg", "$%d", "PGS", 1,
 	pg_connect, pg_disconnect, pg_version,
 	pg_exec, pg_describe, pg_stmt_free,
 	pg_open, pg_fetch, pg_close, pg_txn, pg_ping,
 	&pg_lob, pg_info,
-	pg_cursor_cols
+	pg_cursor_cols, pg_text_flags
 };

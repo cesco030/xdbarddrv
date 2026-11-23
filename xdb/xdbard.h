@@ -8,7 +8,7 @@ extern void xdb_ard_entry(int *level, char *in, int *inlen, char *fmtname,
 
 /* commitment control exit program parameters (QTNADDCR resource) */
 extern void xdb_commit_exit(char *info, char *status, char *ret);
-extern void xdb_fail_sqlca(char *sqlca);
+extern void xdb_fail_sqlca(char *sqlca, const char *msgid);
 
 /*
  * The commitment resource of a connection is added by the program stub,

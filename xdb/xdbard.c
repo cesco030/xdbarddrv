@@ -25,6 +25,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <float.h>
 #include <stddef.h>
 #include <stdarg.h>
 #include <time.h>
@@ -1927,7 +1929,7 @@ stmt_failed(xsess *s)
  * data and is called in a plain SELECT.
  */
 static int
-sql_may_change(const char *sql)
+sql_may_change(const char *sql, int flags)
 {
 	static const char *const words[] = {
 		"INSERT", "UPDATE", "DELETE", "MERGE", "INTO", "CALL", "EXEC", "EXECUTE", "NEXTVAL",
@@ -1935,34 +1937,16 @@ sql_may_change(const char *sql)
 	};
 	const char *p = sql;
 
+	if (sql)
+		xlob_text(sql, flags);
 	while (p && *p)
 	{
 		unsigned char c = (unsigned char) *p;
+		const char *r = xlob_run_end(p);
 
-		if (c == '\'' || c == '"' || c == '`')
-		{
-			/* to the closing quote; a doubled one stays inside */
-			for (p++; *p; p++)
-				if ((unsigned char) *p == c)
-				{
-					if ((unsigned char) p[1] != c)
-						break;
-					p++;
-				}
-			if (*p)
-				p++;
-		}
-		else if (c == '-' && p[1] == '-')
-		{
-			while (*p && *p != '\n')
-				p++;
-		}
-		else if (c == '/' && p[1] == '*')
-		{
-			const char *e = strstr(p + 2, "*/");
-
-			p = e ? e + 2 : p + strlen(p);
-		}
+		/* literals, quoted names and comments, as the server reads them */
+		if (r != p)
+			p = r;
 		else if ((c | 0x20) >= 'a' && (c | 0x20) <= 'z')
 		{
 			const char *w = p;
@@ -2005,7 +1989,8 @@ uow_touch(xsess *s, const char *sql, int cursor)
 {
 	if (s->autocommit || s->uow_dirty)
 		return;
-	if (cursor ? sql_may_change(sql) : !(first_kw(sql, "SET") || first_kw(sql, "USE")))
+	if (cursor ? sql_may_change(sql, s->be->text_flags ? s->be->text_flags(s->bc) : 0) :
+		!(first_kw(sql, "SET") || first_kw(sql, "USE")))
 	{
 		s->uow_dirty = 1;
 		tracef(s->trace, "  the unit of work has changes on the server now");
@@ -2345,7 +2330,7 @@ lob_pending_clear(xsess *s)
  * ("$%d", "?", "@P%d"), outside literals, quoted names and comments.
  */
 static char *
-rewrite_markers(const char *in, const char *fmt, int *nparams)
+rewrite_markers(const char *in, const char *fmt, int flags, int *nparams)
 {
 	size_t		l = strlen(in);
 	char	   *out = malloc(l + 16 + l / 2 * 7);
@@ -2355,39 +2340,28 @@ rewrite_markers(const char *in, const char *fmt, int *nparams)
 
 	if (out == NULL)
 		return NULL;
+	xlob_text(in, flags);
 	while (*p)
 	{
-		if (*p == '\'' || *p == '"' || *p == '`')
-		{
-			char		q = *p;
+		/* literals, quoted names and comments are passed on as they are (xdblob.c reads them) */
+		const char *r = xlob_run_end(p);
 
-			*o++ = *p++;
-			while (*p)
-			{
-				*o++ = *p;
-				if (*p++ == q)
-				{
-					if (*p != q)
-						break;
-					*o++ = *p++;
-				}
-			}
+		if (r != p)
+		{
+			memcpy(o, p, (size_t) (r - p));
+			o += r - p;
+			p = r;
 			continue;
 		}
-		if (p[0] == '-' && p[1] == '-')
+		/*
+		 * PostgreSQL has operators written with a question mark (the ?,
+		 * ?| and ?& of jsonb): written twice it is the operator, as the
+		 * JDBC driver of PostgreSQL has it.
+		 */
+		if ((flags & XTF_QQ) && p[0] == '?' && p[1] == '?')
 		{
-			while (*p && *p != '\n')
-				*o++ = *p++;
-			continue;
-		}
-		if (p[0] == '/' && p[1] == '*')
-		{
-			const char *e = strstr(p + 2, "*/");
-
-			e = e ? e + 2 : p + strlen(p);
-			memcpy(o, p, (size_t) (e - p));
-			o += e - p;
-			p = e;
+			*o++ = '?';
+			p += 2;
 			continue;
 		}
 		if (*p == '?')
@@ -2674,7 +2648,7 @@ stmt_text(xsess *s, const char *in, int off, int len, int ccsid)
 			s->lob_new = pl;
 		}
 	}
-	r = rewrite_markers(u, s->be->marker, NULL);
+	r = rewrite_markers(u, s->be->marker, s->be->text_flags ? s->be->text_flags(s->bc) : 0, NULL);
 	free(u);
 	return r;
 }
@@ -2682,10 +2656,22 @@ stmt_text(xsess *s, const char *in, int off, int len, int ccsid)
 /* ------------------------------------------------------ result description */
 
 /* backend column descriptions -> Db2 types and row lengths */
+/*
+ * Db2 takes a row of 32 K at the most from a driver (SQL0809 for a longer
+ * one).  ROWMAX is what the columns of a row may add up to here when some of
+ * them were given more room than their number of characters, ROWOVH what is
+ * counted for a column besides its bytes (length field, indicator).
+ */
+#define ROWMAX 32700
+#define ROWOVH 4
+
 static void
 describe_cols(xsess *s, xstmt *t, const xbe_col *d, int n)
 {
 	int			i;
+	int			base[MAXCOL];	/* the length of a column without the room for UTF-8 */
+	long		total = 0,		/* the row as described, */
+				least = 0;		/* and with every column at its number of characters */
 
 	free(t->cols);
 	t->cols = NULL;
@@ -2696,6 +2682,8 @@ describe_cols(xsess *s, xstmt *t, const xbe_col *d, int n)
 	for (i = 0; i < t->ncols; i++)
 	{
 		xcol	   *c = &t->cols[i];
+
+		base[i] = -1;
 
 		snprintf(c->name, sizeof c->name, "%s", d[i].name);
 		c->kind = d[i].kind;
@@ -2760,11 +2748,45 @@ describe_cols(xsess *s, xstmt *t, const xbe_col *d, int n)
 			default:
 				c->sqltype = d[i].kind == XK_CHAR ? T_CHAR : T_VARCHAR;
 				c->len = d[i].len > 0 ? d[i].len : s->text_len;
+
+				/*
+				 * The length of a column is one in bytes here, and the
+				 * server counts characters.  In the CCSID of a job with
+				 * one byte for each character that is the same; in UTF-8
+				 * (a profile with CCSID 1208) a character takes up to four
+				 * bytes, and a column described with its number of
+				 * characters would lose the end of a value with accented
+				 * letters in it.  It gets the room its longest value needs.
+				 */
+				if (c->len > 32000)
+					c->len = 32000;
+				base[i] = c->len;
+				if (d[i].len > 0 && s->char_ccsid == UTF8 && d[i].u8 != 1 && d[i].len <= 32000)
+					c->len = d[i].len * (d[i].u8 > 1 ? d[i].u8 : 4);
 				if (c->len > 32000)
 					c->len = 32000;
 				break;
 		}
+		if (base[i] < 0)
+			base[i] = c->len;	/* every other type: its length is what it is */
+		total += c->len + ROWOVH;
+		least += base[i] + ROWOVH;
 	}
+
+	/*
+	 * The room given to the columns of a UTF-8 profile must not make a row
+	 * that Db2 refuses: a query with two long columns would not open any
+	 * more.  When the row has become too long, every column goes back to
+	 * its number of characters, the length it had before columns were given
+	 * room at all (0.9.9 and earlier): a query that was described within the
+	 * limit then is described the same way now.  All or none, so that the
+	 * length of a column does not depend on the others by degrees.  (A row
+	 * too long with those lengths as well is left as it was described: there
+	 * is nothing to gain, and Db2 says what is wrong with it.)
+	 */
+	if (total > ROWMAX && least <= ROWMAX)
+		for (i = 0; i < t->ncols; i++)
+			t->cols[i].len = base[i];
 }
 
 /* write an SQLDA describing the result columns; returns its length */
@@ -3093,6 +3115,68 @@ from_packed(const unsigned char *in, int prec, int scale, int zoned, char *out)
 	*o = '\0';
 }
 
+/* two digits at p as a number, -1 when they are not digits */
+static int
+two_digits(const char *p)
+{
+	if (p[0] < '0' || p[0] > '9' || p[1] < '0' || p[1] > '9')
+		return -1;
+	return (p[0] - '0') * 10 + (p[1] - '0');
+}
+
+/*
+ * Does v begin with a date Db2 has, YYYY-MM-DD from 0001-01-01 to
+ * 9999-12-31?  Servers have dates that are none here: 0000-00-00 and dates
+ * with a month or day of zero on MySQL, years before our era (the text
+ * then ends with BC) and beyond 9999 on PostgreSQL.
+ */
+static int
+date_ok(const char *v)
+{
+	static const int mdays[] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+	int			y1,
+				y2,
+				y,
+				m,
+				d;
+
+	if (strlen(v) < 10 || v[4] != '-' || v[7] != '-')
+		return 0;
+	y1 = two_digits(v);
+	y2 = two_digits(v + 2);
+	m = two_digits(v + 5);
+	d = two_digits(v + 8);
+	if (y1 < 0 || y2 < 0 || m < 1 || m > 12 || d < 1 || d > mdays[m - 1])
+		return 0;
+	y = y1 * 100 + y2;
+	if (y < 1)
+		return 0;
+	if (m == 2 && d == 29 && !(y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)))
+		return 0;
+	if (v[10] == ' ' && v[11] == 'B' && v[12] == 'C')
+		return 0;
+	return 1;
+}
+
+/* does v begin with a time of day, HH:MM:SS up to 24:00:00? */
+static int
+time_ok(const char *v)
+{
+	int			h,
+				m,
+				sec;
+
+	if (strlen(v) < 8 || v[2] != ':' || v[5] != ':')
+		return 0;
+	h = two_digits(v);
+	m = two_digits(v + 3);
+	sec = two_digits(v + 6);
+	if (h < 0 || m < 0 || sec < 0 || m > 59 || sec > 59 || h > 24 || (h == 24 && (m || sec)))
+		return 0;
+	/* a third digit of the hour (838:59:59 on MySQL) shows as a wrong colon above */
+	return 1;
+}
+
 /* one column value (UTF-8 text) -> row bytes; returns bytes written or -1 */
 static int
 put_col(xsess *s, xcol *c, const char *v, unsigned char *o, int room)
@@ -3113,7 +3197,23 @@ put_col(xsess *s, xcol *c, const char *v, unsigned char *o, int room)
 			if (c->kind == XK_BOOL)
 				ll = (v[0] == 't' || v[0] == 'T' || v[0] == '1');
 			else
-				ll = strtoll(v, NULL, 10);
+			{
+				/*
+				 * The whole text must be a number, and one the column has
+				 * room for: a value that is neither is a value that cannot
+				 * be converted, not the low bytes of it or a zero.
+				 */
+				char	   *end;
+
+				errno = 0;
+				ll = strtoll(v, &end, 10);
+				while (*end == ' ')
+					end++;
+				if (end == v || *end != '\0' || errno == ERANGE ||
+					(c->len == 2 && (ll < -32768LL || ll > 32767LL)) ||
+					(c->len == 4 && (ll < -2147483648LL || ll > 2147483647LL)))
+					return -1;
+			}
 			for (n = c->len - 1; n >= 0; n--)
 			{
 				o[n] = (unsigned char) (ll & 0xFF);
@@ -3122,10 +3222,27 @@ put_col(xsess *s, xcol *c, const char *v, unsigned char *o, int room)
 			return c->len;
 		case T_FLOAT:
 			{
-				double		d = strtod(v, NULL);
+				double		d;
 				unsigned char b[8];
 				int			one = 1;
+				const char *t = v;
+				char	   *end;
 
+				/*
+				 * A number, and a finite one: NaN and infinity, which
+				 * PostgreSQL has, are no values of a DOUBLE of Db2.
+				 */
+				while (*t == ' ')
+					t++;
+				if (*t == '-' || *t == '+')
+					t++;
+				if (!((*t >= '0' && *t <= '9') || *t == '.'))
+					return -1;
+				d = strtod(v, &end);
+				while (*end == ' ')
+					end++;
+				if (end == v || *end != '\0' || d != d || d > DBL_MAX || d < -DBL_MAX)
+					return -1;
 				memcpy(b, &d, 8);
 				if (*(char *) &one)
 					for (n = 0; n < 8; n++)
@@ -3139,7 +3256,7 @@ put_col(xsess *s, xcol *c, const char *v, unsigned char *o, int room)
 				return -1;
 			return c->len;
 		case T_DATE:
-			if (strlen(v) < 10 || v[4] != '-')
+			if (!date_ok(v) || v[10] != '\0')
 				return -1;
 			if (strcmp(s->datefmt, "*EUR") == 0)
 				snprintf(tmp, sizeof tmp, "%.2s.%.2s.%.4s", v + 8, v + 5, v);
@@ -3149,7 +3266,7 @@ put_col(xsess *s, xcol *c, const char *v, unsigned char *o, int room)
 				snprintf(tmp, sizeof tmp, "%.10s", v);
 			return ile_conv(UTF8, JOB, tmp, 10, (char *) o, room) == 10 ? 10 : -1;
 		case T_TIME:
-			if (strlen(v) < 8 || v[2] != ':')
+			if (!time_ok(v))
 				return -1;
 			if (strcmp(s->timefmt, "*JIS") == 0)
 				snprintf(tmp, sizeof tmp, "%.8s", v);
@@ -3161,7 +3278,9 @@ put_col(xsess *s, xcol *c, const char *v, unsigned char *o, int room)
 				char		fr[8] = "000000";
 				const char *f = strchr(v, '.');
 
-				if (strlen(v) < 19 || v[4] != '-')
+				/* a date of our era and a time of day, whatever follows them (a fraction, a time zone) */
+				if (strlen(v) < 19 || !date_ok(v) || (v[10] != ' ' && v[10] != 'T') || !time_ok(v + 11) ||
+					strstr(v + 19, "BC") != NULL)
 					return -1;
 				if (f)
 					for (n = 0; n < 6 && f[1 + n] >= '0' && f[1 + n] <= '9'; n++)
@@ -3181,7 +3300,13 @@ put_col(xsess *s, xcol *c, const char *v, unsigned char *o, int room)
 				return -1;
 			}
 			if (n > c->len)
+			{
 				n = c->len;
+				/* cut text is cut between two characters, not inside one */
+				if (s->char_ccsid == UTF8)
+					while (n > 0 && ((unsigned char) conv[n] & 0xC0) == 0x80)
+						n--;
+			}
 			if (c->sqltype == T_CHAR)
 			{
 				memset(o, s->char_ccsid == UTF8 ? ' ' : blank(), c->len);
@@ -3248,6 +3373,15 @@ get_parm(xsess *s, xsqlvar *v, int *kind, int *err)
 			*kind = XK_VARCHAR;
 			break;
 	}
+	/*
+	 * A NULL value.  Db2 hands a host variable that is NULL over without
+	 * its data: SQLDATA is a null pointer, and the indicator pointer that
+	 * comes with it cannot be used (MCH3601 when it is read; seen on IBM i
+	 * 7.5 for EXECUTE and OPEN).  So the data pointer is asked first, and
+	 * the indicator only for a variable that has its data.
+	 */
+	if (v->sqldata == NULL)
+		return NULL;
 	if ((v->sqltype & 1) && v->sqlind && *v->sqlind < 0)
 		return NULL;
 	if (ccsid == 0 || ccsid == 65535)
@@ -3257,16 +3391,22 @@ get_parm(xsess *s, xsqlvar *v, int *kind, int *err)
 		case T_SMALLINT:
 		case T_INTEGER:
 		case T_BIGINT:
-			ll = (d[0] & 0x80) ? -1 : 0;
-			for (i = 0; i < len; i++)
-				ll = (ll << 8) | d[i];
+			{
+				/* big-endian two's complement, put together without shifting a negative value */
+				unsigned long long u = (d[0] & 0x80) ? ~0ULL : 0;
+
+				for (i = 0; i < len; i++)
+					u = (u << 8) | d[i];
+				ll = (long long) u;
+			}
 			out = malloc(32);
-			snprintf(out, 32, "%lld", ll);
+			if (out)
+				snprintf(out, 32, "%lld", ll);
 			return out;
 		case T_FLOAT:
 			{
 				double		dv;
-				float		fv;
+				float		fv = 0;
 				unsigned char b[8];
 				int			one = 1;
 
@@ -3279,8 +3419,24 @@ get_parm(xsess *s, xsqlvar *v, int *kind, int *err)
 				}
 				else
 					memcpy(&dv, b, 8);
+				/*
+				 * The shortest text that gives the same number back: 0.1
+				 * and not 0.10000000000000001, which a server would keep
+				 * as written in a decimal or character column.
+				 */
 				out = malloc(40);
-				snprintf(out, 40, "%.17g", dv);
+				if (out)
+				{
+					int			digits,
+								last = len == 4 ? 9 : 17;
+
+					for (digits = len == 4 ? 6 : 15; digits <= last; digits++)
+					{
+						snprintf(out, 40, "%.*g", digits, dv);
+						if (len == 4 ? (float) strtod(out, NULL) == fv : strtod(out, NULL) == dv)
+							break;
+					}
+				}
 				return out;
 			}
 		case T_DECIMAL:
@@ -5247,10 +5403,19 @@ xdb_commit_exit(char *info, char *status, char *ret)
 	}
 }
 
-/* used by the program stubs when an exception escapes the driver */
+/*
+ * Used by the program stub when an exception escapes the driver: msgid is
+ * the message of the exception (7 characters in the CCSID of the job),
+ * which the stub has left in the job log.
+ */
 void
-xdb_fail_sqlca(char *ca)
+xdb_fail_sqlca(char *ca, const char *msgid)
 {
+	char		id[16];
+
+	id[0] = '\0';
+	if (msgid)
+		fld(msgid, 0, 7, id, sizeof id);
 	sqlca_set(ca, -901, "58004", "XDB internal error (see job log)", 0);
-	tracef(gtrace, "INTERNAL ERROR: exception in the ARD");
+	tracef(gtrace, "INTERNAL ERROR: exception %s in the ARD (its message is in the job log)", id);
 }

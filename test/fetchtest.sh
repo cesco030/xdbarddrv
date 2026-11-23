@@ -35,7 +35,7 @@ prof() { # name, type, port, database, user, value of the option or nothing
   for v in "" 1000 5000 99999; do
     prof FTPG$v PG 5433 postgres postgres $v
     prof FTMY$v MYSQL 3306 xdbtest xdbn $v
-    prof FTMS$v MSSQL 14333 master babelfish_user $v
+    prof FTMS$v MSSQL ${XDB_MS_PORT:-14333} ${XDB_MS_DB:-master} ${XDB_MS_USER:-babelfish_user} $v
   done
 } > $P
 # what is shown: the requests, errors, of a query the number of its rows and the rows where

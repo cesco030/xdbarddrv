@@ -91,3 +91,17 @@ test/dectest.sh
 test/dectest.expected
 build/xrun.sh
 test/xdbrun.sqlrpgle
+test/mstypes.py
+test/msparams.py
+test/msrows.py
+test/tdsfuzz.py
+test/xdbqa.py
+test/pgtypes.py
+test/pgparams.py
+test/pgrows.py
+test/mytypes.py
+test/myparams.py
+test/myrows.py
+test/rowlen.py
+test/sqltext.py
+test/dbfuzz.py

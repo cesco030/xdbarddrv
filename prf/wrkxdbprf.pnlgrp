@@ -339,8 +339,18 @@ not checked.
 :PT.*VERIFY
 :PD.
 Encrypted, and the certificate of the server is checked. The
-connection fails when the certificate is not trusted.
+connection fails when the certificate was not issued by an authority
+the certificate store *SYSTEM trusts. The name the certificate was
+issued for is not compared with the host name of the profile.
 :EPARML.
+:P.
+MySQL 8.0 and later&colon. a login made with caching_sha2_password
+(what these servers make unless told otherwise; MySQL 9 has no
+mysql_native_password any more) signs on the first time after a
+start of the server only on an encrypted connection, and a
+sha256_password login every time. Give such a server *PREFER or
+*REQUIRE. With *OFF the connection can fail with SQLSTATE 28000 and
+a message that names the plugin and asks for TLS.
 :P.
 An option of the profile can replace this field with the exact mode
 of the database client (sslmode, tls, encrypt).
@@ -350,7 +360,10 @@ Connect timeout - Help
 :XH4.Connect timeout
 :P.
 Seconds to wait for the server when the connection is opened. 0
-means 10.
+means 10. The time covers the whole sign-on, the encryption
+handshake included&colon. a server that takes the connection and
+then does not answer ends the CONNECT with SQLCODE -30080 after
+that time. Once the connection is made nothing has a time limit.
 :EHELP.
 :HELP NAME='XDB/PRF/ALW'.
 Allowed users - Help
@@ -387,6 +400,19 @@ The CCSID in which character data is given to Db2. 0 means the CCSID
 of the job, which is the usual choice. 65535 is not allowed.
 Characters that this CCSID does not have arrive as a substitution
 character; no error is reported for them.
+:P.
+1208 (UTF-8) loses no character. A column is then as long in bytes
+as its longest value can be, three or four bytes for each character
+of the column of the server&colon. nvarchar(50) arrives as
+VARCHAR(150). A job whose CCSID has double-byte characters should
+use 1208.
+:P.
+Db2 takes a row of 32 K at the most from a driver (SQL0809 for a
+query whose columns add up to more). The columns get that room only
+while the row keeps within the limit. In a query where it would
+not, every column is as long as its number of characters, and a
+value whose UTF-8 bytes are more is cut&colon. cast such a column
+to a longer one in the query, CAST(col AS CHAR(n)).
 :EHELP.
 :HELP NAME='XDB/PRF/TXTL'.
 Text col. length - Help
@@ -674,6 +700,24 @@ Keywords for MySQL - Help
 :PD.
 A statement run right after the connection is opened, for example
 to set the time zone or the SQL mode of the session.
+:P.
+Two that are often wanted&colon.
+:P.
+SET NAMES utf8mb4 gives the session the collation the server uses
+for the character set. The driver signs on with utf8mb4_general_ci,
+and MySQL 8.0 and later then refuse to compare a variable of the
+session (@v) with a column of their own default collation (error
+1267, Illegal mix of collations).
+:P.
+SET SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES')
+makes the server refuse a value that does not fit its column. A
+server that is not strict cuts a text that is too long, takes the
+nearest number or stores a zero date, and reports success&colon. the
+program gets SQLCODE 0. SELECT @@sql_mode through the connection
+shows what a server does.
+:P.
+Both in one statement&colon. SET NAMES utf8mb4, SESSION sql_mode =
+CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES')
 :PT.tls
 :PD.
 The exact TLS mode&colon. off, prefer, require or verify. It
@@ -716,8 +760,11 @@ varchar or nvarchar. varchar lets SQL Server use an index on a
 varchar column.
 :PT.datetime2
 :PD.
-on sends dates and times as date, time and datetime2. off sends
-them as datetime, for servers older than SQL Server 2008.
+on sends a TIMESTAMP as datetime2 and a TIME as time. Without it a
+TIMESTAMP goes as datetime, which finds the values of datetime
+columns but carries milliseconds only, and a TIME as text. A DATE
+goes as date in both cases. Use on with tables that have datetime2
+columns.
 :PT.appname
 :PD.The application name shown on the server.
 :PT.socket_buffer
@@ -989,6 +1036,36 @@ with one INSERT (INSERT INTO table n ROWS VALUES(array)). Commit
 at the end&colon. COMMIT closes the cursor on the server too.
 Program XDBETL in the sources (test/xdbetl.sqlrpgle) is a sample
 with three servers and the local database in one program.
+:EUL.
+:P.
+:HP2.Values a program passes and receives&colon.:EHP2.
+:UL.
+:LI.
+A question mark is a parameter marker except inside a literal, a
+quoted name or a comment, as the server reads them&colon. on
+PostgreSQL also not inside dollar-quoted text ($$ ... $$), on MySQL
+not after a number sign. PostgreSQL has operators written with a
+question mark (those of jsonb)&colon. write the question mark twice
+where the operator is meant (?? for the operator ?).
+:LI.
+PostgreSQL takes the type of a value from the place of its marker
+(WHERE N = ?). Where the statement leaves the type open (SELECT ?,
+? IS NULL) the value is passed as text&colon. write CAST(? AS
+INTEGER) there when a number is meant.
+:LI.
+On MySQL and SQL Server a numeric host variable is passed as a
+number, so it can be used for a LIMIT, an ENUM by its number or a
+BIT column.
+:LI.
+A floating point host variable is passed as the shortest decimal
+number that gives the same value back&colon. a REAL that holds 0.1
+goes as 0.1, into a DOUBLE or DECIMAL column too.
+:LI.
+A value Db2 has no place for arrives as a value that could not be
+converted (indicator -2, the other columns of the row are there),
+never as another value&colon. NaN and Infinity, a date before the
+year 1 or after 9999, the dates 0000-00-00 and the like and a time
+of more than 24 hours of MySQL, a number too large for its column.
 :EUL.
 :P.
 :HP2.Long values and large objects&colon.:EHP2.

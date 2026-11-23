@@ -180,11 +180,69 @@ ile_conv(int from_ccsid, int to_ccsid, const char *in, size_t inlen,
 	s = conv_get(from_ccsid, to_ccsid);
 	if (s == NULL)
 		return -1;
+#ifdef __ILEC400__
 	if (il > 0 && iconv(s->cd, &ip, &il, &op, &ol) == (size_t) -1)
 	{
 		iconv(s->cd, NULL, NULL, NULL, NULL);
 		return -1;
 	}
+#else
+	/*
+	 * The system puts the substitution character of the target where the
+	 * target has no such character and goes on; the iconv of Linux stops
+	 * there.  The emulation does what the system does: a character of the
+	 * source that is one, and that the target lacks, becomes a substitution
+	 * character (X'3F' in EBCDIC, X'1A' elsewhere).
+	 */
+	while (il > 0 && iconv(s->cd, &ip, &il, &op, &ol) == (size_t) -1)
+	{
+		int			f = from_ccsid == 0 ? ile_job_ccsid() : from_ccsid;
+		int			t = to_ccsid == 0 ? ile_job_ccsid() : to_ccsid;
+		const unsigned char *u = (const unsigned char *) ip;
+		size_t		skip = 1,
+					k;
+		int			wide_to = t == 1200 || t == 13488 || t == 61952;
+		int			ascii_to = t == 1208 || t == 819 || t == 874 || (t >= 1250 && t <= 1258) ||
+			t == 943 || t == 1386 || t == 1363 || t == 950;
+
+		if (errno != EILSEQ)
+		{
+			iconv(s->cd, NULL, NULL, NULL, NULL);
+			return -1;
+		}
+		if (f == 1208)
+		{
+			skip = u[0] >= 0xF0 ? 4 : u[0] >= 0xE0 ? 3 : u[0] >= 0xC0 ? 2 : 1;
+			if (u[0] < 0xC2 || u[0] > 0xF4 || skip > il)
+				skip = 0;		/* not a character: that is an error on the system too */
+			for (k = 1; k < skip; k++)
+				if ((u[k] & 0xC0) != 0x80)
+					skip = 0;
+		}
+		else if (f == 1200 || f == 13488 || f == 61952)
+		{
+			skip = 2;
+			if (il < 2 || (u[0] >= 0xDC && u[0] <= 0xDF))
+				skip = 0;
+			else if (u[0] >= 0xD8 && u[0] <= 0xDB)
+				skip = (il >= 4 && u[2] >= 0xDC && u[2] <= 0xDF) ? 4 : 0;
+		}
+		if (skip == 0 || ol < (size_t) (wide_to ? 2 : 1))
+		{
+			iconv(s->cd, NULL, NULL, NULL, NULL);
+			return -1;
+		}
+		if (wide_to)
+		{
+			*op++ = 0x00;
+			ol--;
+		}
+		*op++ = (wide_to || ascii_to) ? 0x1A : 0x3F;
+		ol--;
+		ip += skip;
+		il -= skip;
+	}
+#endif
 	if (ol > 0)
 		*op = '\0';
 	return (int) (outsize - ol);

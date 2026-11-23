@@ -25,6 +25,14 @@ typedef struct
 	int			len;			/* characters for CHAR/VARCHAR, 0 = unbounded */
 	int			prec;			/* DECIMAL precision, 0 = unbounded */
 	int			scale;
+
+	/*
+	 * How many bytes one unit of len can take when the value is handed over
+	 * as UTF-8 (a profile with CCSID 1208): 1 = the text is ASCII, as that
+	 * of a uuid or of bytes shown in hexadecimal; 3 = a UTF-16 code unit
+	 * or a character of a single-byte code page; 0 = a character, 4.
+	 */
+	int			u8;
 } xbe_col;
 
 typedef struct
@@ -239,7 +247,26 @@ typedef struct xbe_driver
 	 * describe() told.  May be NULL.
 	 */
 	int			(*cursor_cols) (void *c, void *cur, xbe_col **cols, int *ncols, xbe_err *e);
+
+	/*
+	 * How the text of a statement is to be read where the driver looks for
+	 * parameter markers and file functions (XTF_* below): what ends a
+	 * literal and what is a comment differs between the servers, and on
+	 * some with the settings of the session.  c may be NULL (then: as the
+	 * server reads it when nothing has been changed).  May be NULL: 0.
+	 */
+	int			(*text_flags) (void *c);
 } xbe_driver;
+
+#define XTF_BACKSLASH	 1		/* in '...' a backslash takes the next character with it */
+#define XTF_BACKSLASH_DQ 2		/* in "..." too (MySQL, where it is a literal) */
+#define XTF_ESTRING		 4		/* E'...': backslashes whatever the setting (PostgreSQL) */
+#define XTF_DOLLAR		 8		/* $tag$ ... $tag$ is a literal (PostgreSQL) */
+#define XTF_NESTED		16		/* a comment can hold comments (PostgreSQL) */
+#define XTF_HASH		32		/* # begins a comment to the end of the line (MySQL) */
+#define XTF_DASHSPACE	64		/* -- begins a comment only before a blank (MySQL) */
+#define XTF_BRACKET	   128		/* [name] is a quoted name (SQL Server) */
+#define XTF_QQ		   256		/* ?? is the operator ?, not two markers (PostgreSQL) */
 
 extern const xbe_driver xbe_pg;
 extern const xbe_driver xbe_mysql;
@@ -265,6 +292,15 @@ extern int	xnet_sockbuf_opt(const char *conninfo);
 
 /* 1 = data can be read within timeout seconds, 0 = nothing came, -1 = error */
 extern int	xnet_wait_readable(int fd, int timeout);
+
+/*
+ * From now on a read of the socket gives up after that many seconds without
+ * a byte (0 = it waits as long as it takes).  For the time a connection
+ * signs on: a server that takes the connection and then says nothing would
+ * hold the job for ever.  Taken off again once the connection is made, for a
+ * statement may run as long as it needs.
+ */
+extern void xnet_rcv_timeout(int fd, int seconds);
 
 /*
  * Look at an idle socket without waiting: 1 = the peer has closed or reset

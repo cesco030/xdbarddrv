@@ -3,7 +3,8 @@
 # between stream files and the server, through the emulation of the driver.
 #   usage: sh lobtest_my.sh <emu dir with ardsh>     needs python3 and the MySQL of the other
 #   tests (127.0.0.1:3306, database xdbtest, user xdbn, password xdbpw) with max_allowed_packet
-#   at its default of 64 MB.  Compare with lobtest_my.expected.
+#   at its default of 64 MB.  Compare with lobtest_my.expected.  Another server: XDB_MY_PORT,
+#   XDB_MY_USER, XDB_MY_TLS (*PREFER or *REQUIRE, which a first sign-on to MySQL 9 needs).
 # A file travels as the value of a parameter, in pieces of 1 MB; a file column is written while
 # its row is read from the line.  The server limits a value to max_allowed_packet.
 # Work files: /tmp/xdb_lobm.  XDB_LOBT_TRACE=Y writes the trace of the driver to /tmp/xdb_LOBMY.log.
@@ -14,7 +15,7 @@ mkdir -p $D
 export XDB_EMU_JOBCCSID=280 XDB_PRF_EMU=$P XDB_TEST_RDB=LOBMY XDB_CONF=/dev/null XDB_SH_MAXROWS=20
 export XDB_EMU_JOBLOG=1		# what the driver would write to the job log comes as "JOBLOG ..."
 {
-  echo "P|LOBMY|MYSQL|A|127.0.0.1|3306|xdbtest|xdbn|*OFF|10|0|1000|6|${XDB_LOBT_TRACE:-N}"
+  echo "P|LOBMY|MYSQL|A|127.0.0.1|${XDB_MY_PORT:-3306}|xdbtest|${XDB_MY_USER:-xdbn}|${XDB_MY_TLS:-*OFF}|10|0|1000|6|${XDB_LOBT_TRACE:-N}"
   echo "W|LOBMY|xdbpw"
 } > $P
 python3 - $D <<'PY'
@@ -46,7 +47,8 @@ run() { # title, then the requests on standard input
   $E/ardsh 2>&1 | grep -E "^(>|AR|JOBLOG|  row|  col|  rows|  total)" | cut -c1-170
 }
 same() { if cmp -s "$D/$1" "$D/$2"; then echo "   $2 = $1"; else echo "   $2 DIFFERS from $1"; fi; }
-md5() { echo "   md5 of $1: $(md5sum < $D/$1 | cut -c1-32)"; }
+# SHA-256: the MD5() and SHA1() functions of the server are not there on MySQL 9.7
+sum() { echo "   sha256 of $1: $(sha256sum < $D/$1 | cut -c1-64)"; }
 
 run "values from files, then back to files" <<EOF2
 ISO *CHG
@@ -58,12 +60,12 @@ E s1 i:2|$D/piece.bin|$D/small.txt
 E s1 i:3|$D/over.bin|$D/big.txt
 E s1 i:4|$D/big.bin|$D/latin.txt
 E s1 i:5|$D/empty.bin|$D/empty.bin
-Q select id, length(body) as bytes, md5(body) as body_md5, char_length(note) as chars, md5(note) as note_md5 from xdb_doc order by id
+Q select id, length(body) as bytes, sha2(body, 256) as body_sum, char_length(note) as chars, sha2(note, 256) as note_sum from xdb_doc order by id
 Q select id, put_blob_to_file(body, concat('$D/out', id, '.bin')), put_clob_to_file(note, concat('$D/out', id, '.txt')) as text_bytes from xdb_doc order by id
 ROLLBACK
 D
 EOF2
-md5 small.bin; md5 piece.bin; md5 over.bin; md5 big.bin; md5 small.txt; md5 big.txt; md5 latin.txt
+sum small.bin; sum piece.bin; sum over.bin; sum big.bin; sum small.txt; sum big.txt; sum latin.txt
 same small.bin out1.bin; same piece.bin out2.bin; same over.bin out3.bin; same big.bin out4.bin; same empty.bin out5.bin
 same small.txt out2.txt; same big.txt out3.txt; same latin.txt out4.txt; same empty.bin out5.txt
 ls $D/out1.txt 2>/dev/null || echo "   out1.txt was not written (the value is null)"
@@ -154,7 +156,7 @@ X insert into xdb_doc (id, note) values(9, get_clob_from_file('$D/cut.txt'))
 E s1 i:1|$D/over.bin
 E s1 i:1|$D/small.bin
 E s1 i:2|$D/small.bin
-Q select id, length(body) as bytes, md5(body) as body_md5 from xdb_doc order by id
+Q select id, length(body) as bytes, sha2(body, 256) as body_sum from xdb_doc order by id
 Q select put_blob_to_file(body, '$D/nodir/x.bin') from xdb_doc where id = 1
 Q select put_blob_to_file(body, '$D/dir.bin') from xdb_doc where id = 1
 Q select put_blob_to_file(body, null) from xdb_doc where id = 1
@@ -170,7 +172,7 @@ K c1
 ROLLBACK
 D
 EOF2
-md5 small.bin
+sum small.bin
 same over.bin out_x.bin
 echo "   (out_x.bin is the first column of a row whose second column failed: complete, so it stays)"
 same over.bin out_y1.bin; same small.bin out_y2.bin

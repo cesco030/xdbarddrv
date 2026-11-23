@@ -4,7 +4,13 @@
  *   ISO *CHG|*NONE    isolation for the next requests
  *   X sql             execute immediate
  *   P name sql        prepare
- *   E name a|b|c      execute prepared (i:5 = integer, n: = NULL, else VARCHAR)
+ *   E name a|b|c      execute prepared (i:5 = integer, n: = NULL, else VARCHAR; host
+ *                     variables of the other types: @s:5 SMALLINT, @b:5 BIGINT, @f:1.5
+ *                     DOUBLE, @r:1.5 REAL, @p15,4:12.5 DECIMAL(15,4), @z15,4:12.5 zoned,
+ *                     @c10:abc CHAR(10), @D:2026-01-31 DATE, @T:13:45:10 TIME,
+ *                     @Z:2026-01-31-13.45.10.123456 TIMESTAMP, @g:text VARGRAPHIC,
+ *                     @v:text VARCHAR (also an empty one);
+ *                     the value @null is the NULL value of that type, @D:@null)
  *   Q sql             prepare, describe, open, fetch everything, close
  *   R sql             the same in one fixed statement slot (as STRSQL does)
  *   O cur sql         open a cursor and leave it open (a|b params after " ## ")
@@ -16,6 +22,7 @@
  *   RDB name          the connection the next requests are for
  *   SLEEP n           wait n seconds         ! command   run a shell command
  * env: XDB_CONF, XDB_EMU_JOBCCSID, XDB_TEST_RDB, XDB_SH_MAXROWS (rows printed),
+ *      XDB_SH_FLOAT17 (floating point values with all their digits),
  *      XDB_EMU_CMT (the kind of commitment resource the emulated system takes)
  */
 #include <stdio.h>
@@ -80,6 +87,142 @@ parms(const char *spec, int off, int offfld)
 			pv[n].sqldata = pbuf + used;
 			used += 4;
 		}
+		else if (tok[0] == '@' && tok[1] && strchr(tok, ':'))
+		{
+			/* a host variable of another type, laid out as the system passes it */
+			const char *val = strchr(tok, ':') + 1;
+			char		k = tok[1];
+			int			l,
+						i;
+
+			if (strcmp(val, "@null") == 0)
+			{
+				/* the NULL value of that type: the indicator says so, the data is not looked at */
+				pind[n] = -1;
+				val = "0";
+			}
+			pv[n].sqldata = pbuf + used;
+			if (k == 's' || k == 'b')
+			{
+				long long	x = atoll(val);
+
+				l = k == 's' ? 2 : 8;
+				pv[n].sqltype = k == 's' ? 501 : 493;
+				pv[n].sqllen = (short) l;
+				for (i = 0; i < l; i++)
+					pbuf[used + i] = (unsigned char) (x >> (8 * (l - 1 - i)));
+			}
+			else if (k == 'f' || k == 'r')
+			{
+				double		dv = atof(val);
+				float		fv = (float) dv;
+				unsigned char *src = k == 'f' ? (unsigned char *) &dv : (unsigned char *) &fv;
+				int			one = 1;
+
+				l = k == 'f' ? 8 : 4;
+				pv[n].sqltype = 481;
+				pv[n].sqllen = (short) l;
+				for (i = 0; i < l; i++)
+					pbuf[used + i] = *(char *) &one ? src[l - 1 - i] : src[i];
+			}
+			else if (k == 'p' || k == 'z')
+			{
+				/* digits of the value, scaled, right aligned; the sign in the last nibble or zone */
+				int			prec = atoi(tok + 2),
+							scale = strchr(tok, ',') && strchr(tok, ',') < val ? atoi(strchr(tok, ',') + 1) : 0;
+				char		dg[80];
+				int			neg = val[0] == '-',
+							nd = 0,
+							frac = -1;
+				const char *q;
+
+				memset(dg, '0', sizeof dg);
+				for (q = val + neg; *q; q++)
+					if (*q == '.')
+						frac = 0;
+					else if (frac < 0 || frac < scale)
+					{
+						if (nd < 70)
+							dg[nd++] = *q;
+						if (frac >= 0)
+							frac++;
+					}
+				for (i = frac < 0 ? 0 : frac; i < scale && nd < 70; i++)
+					dg[nd++] = '0';
+				pv[n].sqltype = k == 'p' ? 485 : 489;
+				pv[n].sqllen = (short) (prec * 256 + scale);
+				if (k == 'p')
+				{
+					l = prec / 2 + 1;
+					memset(pbuf + used, 0, (size_t) l);
+					for (i = 0; i < prec; i++)
+					{
+						int			d = i < nd ? dg[nd - 1 - i] - '0' : 0;
+						int			nib = 1 + i;	/* nibbles from the right, 0 is the sign */
+
+						pbuf[used + l - 1 - nib / 2] |= (unsigned char) (nib % 2 ? d << 4 : d);
+					}
+					pbuf[used + l - 1] |= neg ? 0x0D : 0x0F;
+				}
+				else
+				{
+					l = prec;
+					for (i = 0; i < prec; i++)
+						pbuf[used + l - 1 - i] = (unsigned char) (0xF0 | (i < nd ? dg[nd - 1 - i] - '0' : 0));
+					if (neg)
+						pbuf[used + l - 1] = (unsigned char) (0xD0 | (pbuf[used + l - 1] & 0x0F));
+				}
+			}
+			else if (k == 'v')
+			{
+				/* VARCHAR, said so: the way to pass an empty one, or text that looks like another form */
+				static char c[20000];
+
+				l = ile_conv(1208, ile_job_ccsid(), val, strlen(val), c, sizeof c);
+				if (l < 0)
+					l = 0;
+				pv[n].sqltype = 449;
+				pv[n].sqllen = (short) l;
+				pbuf[used] = (unsigned char) (l >> 8);
+				pbuf[used + 1] = (unsigned char) l;
+				memcpy(pbuf + used + 2, c, (size_t) l);
+				l += 2;
+			}
+			else if (k == 'g')
+			{
+				l = ile_conv(1208, 1200, val, strlen(val), (char *) pbuf + used + 2, 24000);
+				if (l < 0)
+					l = 0;
+				pv[n].sqltype = 465;
+				pv[n].sqllen = (short) (l / 2);
+				pbuf[used] = (unsigned char) ((l / 2) >> 8);
+				pbuf[used + 1] = (unsigned char) (l / 2);
+				l += 2;
+			}
+			else
+			{
+				/* CHAR(n), DATE, TIME, TIMESTAMP: text in the CCSID of the job */
+				static char c[4000];
+				int			want = k == 'c' ? atoi(tok + 2) : k == 'D' ? 10 : k == 'T' ? 8 : 26;
+
+				l = ile_conv(1208, ile_job_ccsid(), val, strlen(val), c, sizeof c);
+				if (l < 0)
+					l = 0;
+				if (k == 'c' || l > want)
+				{
+					char		blank;
+
+					ile_conv(1208, ile_job_ccsid(), " ", 1, &blank, 1);
+					for (i = l; i < want; i++)
+						c[i] = blank;
+					l = want;
+				}
+				pv[n].sqltype = k == 'c' ? 453 : k == 'D' ? 385 : k == 'T' ? 389 : 393;
+				pv[n].sqllen = (short) l;
+				memcpy(pbuf + used, c, (size_t) l);
+			}
+			used += l;
+		}
 		else if (tok[0] == 't' && strchr(tok, ':'))
 		{
 			/* t<sqltype>:  a host variable of any SQL type, 8 bytes of data */
@@ -111,6 +254,18 @@ parms(const char *spec, int off, int offfld)
 			used += l + 2;
 		}
 	}
+	/*
+	 * A NULL host variable as Db2 hands it to the driver (seen on IBM i 7.5,
+	 * for an EXECUTE and for an OPEN): no data pointer, and an indicator
+	 * pointer that cannot be used.  Here that is an address that ends the
+	 * harness when it is read.
+	 */
+	for (v = 0; v < n; v++)
+		if (pind[v] < 0)
+		{
+			pv[v].sqldata = NULL;
+			pv[v].sqlind = (short *) 8;
+		}
 	off = (off + 15) & ~15;
 	memcpy(in + off, "SQLDA   ", 8);
 	{

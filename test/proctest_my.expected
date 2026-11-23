@@ -19,10 +19,19 @@ ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1
 > X drop procedure if exists xdb_pt_fail
 ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
   rows=0
+> X drop procedure if exists xdb_pt_commits
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop table if exists xdb_pt_ddl
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
 > X drop table if exists xdb_pt_log
 ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
   rows=0
 > X create table xdb_pt_log (n int)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X create procedure xdb_pt_commits(in p_n int) begin insert into xdb_pt_log values (p_n); commit; end
 ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
   rows=0
 > X create procedure xdb_pt_add(in a int, in b int, out total int) begin set total = a + b; end
@@ -349,10 +358,89 @@ ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0
 > COMMIT
 > D
 ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+== a statement that commits by itself inside a unit of work: what comes after it is still under ROLLBACK
+> ISO *CHG
+> C
+ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
+> X delete from xdb_pt_log
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> COMMIT
+> X insert into xdb_pt_log values (501)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X create table xdb_pt_ddl (n int)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_pt_log values (502)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X insert into xdb_pt_log values (503)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> ROLLBACK
+> Q select n from xdb_pt_log order by n
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 501
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=1 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X insert into xdb_pt_log values (504)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X call xdb_pt_commits(505)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_pt_log values (506)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> ROLLBACK
+> Q select n from xdb_pt_log order by n
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 501
+  row: 504
+  row: 505
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=3 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X drop table xdb_pt_ddl
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X insert into xdb_pt_log values (507)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> X drop table xdb_pt_ddl
+ARXI0100 -> sqlcode -204 sqlstate 42704 outlen 1 {xdb_pt_ddl|xdbtest|N}
+  rows=0
+> X insert into xdb_pt_log values (508)
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=1
+> ROLLBACK
+> Q select n from xdb_pt_log order by n
+ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 144 
+  col n type 497 len 4 ccsid 0
+AROC0100 -> sqlcode 0 sqlstate 00000 outlen 96 
+  row: 501
+  row: 504
+  row: 505
+  row: 507
+ARFC0100 -> sqlcode 100 sqlstate 02000 
+  total rows=4 in 1 fetch calls
+ARCC0100 -> sqlcode 0 sqlstate 00000 outlen 0 
+> X delete from xdb_pt_log
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=4
+> COMMIT
+> D
+ARDI0100 -> sqlcode 0 sqlstate 00000 outlen 0 
 == statements the server describes when they run: EXPLAIN, some SHOW
 > C
 ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20 
-> Q explain select 1
+> Q explain format=traditional select 1
 ARPD0100 -> sqlcode 0 sqlstate 00000 outlen 16 
 AROC0100 -> sqlcode 0 sqlstate 00000 outlen 800 
   the open tells 12 columns:
@@ -486,6 +574,12 @@ ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1
 ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
   rows=0
 > X drop procedure if exists xdb_pt_fail
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop procedure if exists xdb_pt_commits
+ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
+  rows=0
+> X drop table if exists xdb_pt_ddl
 ARXI0100 -> sqlcode 0 sqlstate 00000 outlen 1 
   rows=0
 > X drop table if exists xdb_pt_log

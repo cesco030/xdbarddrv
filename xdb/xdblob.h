@@ -58,6 +58,15 @@ typedef struct xlob_plan
  * it runs.  -1 = the functions are used wrongly, or the backend cannot
  * move files: e says why.
  */
+/*
+ * The reading of statement text that the core and this module share.
+ * xlob_text() says which text is read from now on and how (XTF_* of the
+ * backend); xlob_run_end(p) gives the end of the literal, quoted name or
+ * comment that begins at p, or p when none begins there.
+ */
+extern void xlob_text(const char *start, int flags);
+extern const char *xlob_run_end(const char *p);
+
 extern int	xlob_parse(const char *sql, const xbe_driver *be, void *bc, int stage,
 					   char **out, xlob_plan **plan, xbe_err *e);
 extern void xlob_plan_free(xlob_plan *p);

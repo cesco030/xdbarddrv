@@ -288,7 +288,9 @@ dcl-proc pMain;
 
   // ---- what the server has
   if my;
-    s = 'select id, length(body), md5(body) from ' + tab + ' where body is not null order by id';
+    // SHA-256 there: MySQL 9 has MD5() only in a component that is not installed with it
+    s = 'select id, length(body), sha2(body, 256) from ' + tab
+      + ' where body is not null order by id';
   elseif pg;
     s = 'select id, octet_length(body), md5(body) from xdbt32 where body is not null order by id';
   else;
@@ -310,7 +312,9 @@ dcl-proc pMain;
         endif;
         leave;
       endif;
-      if my or pg;
+      if my;
+        say('  row ' + %char(id) + ': ' + %char(n1) + ' bytes, sha256 ' + hash);
+      elseif pg;
         say('  row ' + %char(id) + ': ' + %char(n1) + ' bytes, md5 ' + hash);
       else;
         say('  row ' + %char(id) + ': ' + %char(n1) + ' bytes, md5 of the first 8000 ' + hash);
@@ -358,8 +362,8 @@ dcl-proc pMain;
   note('row 12 from out_280.txt');
   if my;
     num('texts in the table that are what the server made (2 = both)' :
-        'select count(*) from ' + tab + ' where (id = 11 and md5(note) = md5(' + t1
-        + ')) or (id = 12 and md5(note) = md5(' + t2 + '))');
+        'select count(*) from ' + tab + ' where (id = 11 and sha2(note, 256) = sha2(' + t1
+        + ', 256)) or (id = 12 and sha2(note, 256) = sha2(' + t2 + ', 256))');
     num('characters in row 11' : 'select char_length(note) from ' + tab + ' where id = 11');
   elseif pg;
     num('texts in the table that are what the server made (2 = both)' :
@@ -455,13 +459,23 @@ dcl-proc pMain;
       endif;
       hash = '';
       h8 = '';
-      exec sql select lower(hex(hash_md5(line))),
-                      lower(hex(hash_md5(substr(line, 1, min(8000, length(line))))))
-                 into :hash, :h8
-                 from table(qsys2.ifs_read_binary(path_name => :path))
-                 fetch first 1 row only;
+      if my;
+        exec sql select lower(hex(hash_sha256(line))),
+                        lower(hex(hash_sha256(substr(line, 1, min(8000, length(line))))))
+                   into :hash, :h8
+                   from table(qsys2.ifs_read_binary(path_name => :path))
+                   fetch first 1 row only;
+      else;
+        exec sql select lower(hex(hash_md5(line))),
+                        lower(hex(hash_md5(substr(line, 1, min(8000, length(line))))))
+                   into :hash, :h8
+                   from table(qsys2.ifs_read_binary(path_name => :path))
+                   fetch first 1 row only;
+      endif;
       if sqlcod < 0;
         note('checksum of ' + path);
+      elseif my;
+        say('here, ' + path + ': sha256 ' + hash + ', sha256 of the first 8000 ' + h8);
       else;
         say('here, ' + path + ': md5 ' + hash + ', md5 of the first 8000 ' + h8);
       endif;

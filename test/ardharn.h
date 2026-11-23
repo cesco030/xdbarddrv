@@ -56,6 +56,37 @@ U(const char *src, int len, char *dst)
 }
 
 /*
+ * A character value of a row, in brackets, read in the CCSID of its column.
+ * One of up to 1000 bytes is printed whole; of a longer one the first 60
+ * bytes, and its length.
+ */
+static void
+UV(const char *src, int len, int ccsid)
+{
+	char	   *d = malloc((size_t) len * 4 + 8);
+	int			n = d ? ile_conv((ccsid == 0 || ccsid == 65535) ? ile_job_ccsid() : ccsid, 1208, src, len, d, (size_t) len * 4 + 4) : -1;
+
+	if (n < 0)
+		printf(" [<not text of the job>]");
+	else
+	{
+		while (n > 0 && d[n - 1] == ' ')
+			n--;
+		if (n <= 1000)
+			printf(" [%.*s]", n, d);
+		else
+		{
+			int			cut = 60;
+
+			while (cut > 0 && ((unsigned char) d[cut] & 0xC0) == 0x80)
+				cut--;
+			printf(" [%.*s... %d bytes]", cut, d, n);
+		}
+	}
+	free(d);
+}
+
+/*
  * SQLERRMC as text.  When it holds message data (tokens with a two byte
  * length in front, as Db2's own messages want them) the tokens are shown
  * as {a|b|c}.
@@ -397,7 +428,7 @@ dump_rows(void)
 						for (k = 0; k < 8; k++)
 							r[k] = p[7 - k];
 						memcpy(&d, r, 8);
-						printf(" %g", d);
+						printf(getenv("XDB_SH_FLOAT17") ? " %.17g" : " %g", d);
 						p += 8;
 						break;
 					}
@@ -411,13 +442,11 @@ dump_rows(void)
 					break;
 				case 448:
 					k = (p[0] << 8) | p[1];
-					U((const char *) p + 2, k, b);
-					printf(" [%s]", b);
+					UV((const char *) p + 2, k, (v[offsetof(xsqlvar, sqldata) + 2] << 8) | v[offsetof(xsqlvar, sqldata) + 3]);
 					p += 2 + k;
 					break;
 				default:
-					U((const char *) p, l, b);
-					printf(" [%s]", b);
+					UV((const char *) p, l, (v[offsetof(xsqlvar, sqldata) + 2] << 8) | v[offsetof(xsqlvar, sqldata) + 3]);
 					p += l;
 					break;
 			}

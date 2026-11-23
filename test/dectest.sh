@@ -26,7 +26,7 @@ prof() { # name, type, port, database, user
 {
   prof DCPG PG 5433 postgres postgres
   prof DCMY MYSQL 3306 xdbtest xdbn
-  prof DCMS MSSQL 14333 master babelfish_user
+  prof DCMS MSSQL ${XDB_MS_PORT:-14333} ${XDB_MS_DB:-master} ${XDB_MS_USER:-babelfish_user}
 } > $P
 run() { # RDB name, title, then the requests on standard input
   echo "== $2"

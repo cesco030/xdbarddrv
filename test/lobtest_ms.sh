@@ -13,6 +13,12 @@
 # Babelfish 5.6 also loses its server process (in sp_cursoropen) when a cursor with (max)
 # values was closed before its last row and more cursors follow on the connection: every fetch
 # that is meant to fail has a connection of its own here, and the table is a real one.
+# The same server process is also lost, in the step with many rows (app_many.txt), on every
+# other run of this test against one Babelfish - whether the server was restarted in between
+# or not, and with what the driver sends being the same, byte for byte, as in a run that went
+# through.  When the output differs from that step on, look for "terminated by signal" in
+# the log of Babelfish and run the test again.  A real SQL Server (XDB_MS_PORT, XDB_MS_DB,
+# XDB_MS_USER) takes the test any number of times; the names of its constraints differ then.
 # Work files: /tmp/xdb_lobs.  XDB_LOBT_TRACE=Y writes the traces to /tmp/xdb_LOBMS.log ...
 E=$1
 D=/tmp/xdb_lobs
@@ -22,9 +28,9 @@ export XDB_EMU_JOBCCSID=280 XDB_PRF_EMU=$P XDB_CONF=/dev/null XDB_SH_MAXROWS=20
 export XDB_EMU_JOBLOG=1		# what the driver would write to the job log comes as "JOBLOG ..."
 T=${XDB_LOBT_TRACE:-N}
 {
-  echo "P|LOBMS|MSSQL|A|127.0.0.1|14333|master|babelfish_user|*OFF|10|0|1000|6|$T"
+  echo "P|LOBMS|MSSQL|A|127.0.0.1|${XDB_MS_PORT:-14333}|${XDB_MS_DB:-master}|${XDB_MS_USER:-babelfish_user}|*OFF|10|0|1000|6|$T"
   echo "W|LOBMS|xdbpw"
-  echo "P|LOBM1|MSSQL|A|127.0.0.1|14333|master|babelfish_user|*OFF|10|0|1000|6|$T"
+  echo "P|LOBM1|MSSQL|A|127.0.0.1|${XDB_MS_PORT:-14333}|${XDB_MS_DB:-master}|${XDB_MS_USER:-babelfish_user}|*OFF|10|0|1000|6|$T"
   echo "W|LOBM1|xdbpw"
   echo "O|LOBM1|tds|C|7.1"
   echo "P|LOBM0|MSSQL|A|127.0.0.1|14330|testdb|sa|*OFF|10|0|1000|6|$T"

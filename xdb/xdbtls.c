@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include "xdb_be.h"
 
 extern int	ile_conv(int from_ccsid, int to_ccsid, const char *in, size_t inlen,
@@ -94,6 +95,20 @@ xtls_start_io(int fd, const xtls_io *io, const char *host, int verify, int max12
 		rc = gsk_secure_soc_open(t->env, &t->soc);
 	if (rc == GSK_OK)
 		rc = gsk_attribute_set_numeric_value(t->soc, GSK_FD, fd);
+	if (rc == GSK_OK)
+	{
+		/*
+		 * A connection that is signing on has a time limit on its socket
+		 * (xnet_rcv_timeout): the handshake gets the same, so that a server
+		 * that takes the connection and says nothing does not hold the job.
+		 */
+		struct timeval tv;
+		socklen_t	tl = sizeof tv;
+
+		memset(&tv, 0, sizeof tv);
+		if (getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, &tl) == 0 && tv.tv_sec > 0)
+			gsk_attribute_set_numeric_value(t->soc, GSK_HANDSHAKE_TIMEOUT, (int) tv.tv_sec);
+	}
 	/* server name indication, for names only */
 	if (rc == GSK_OK && host && host[0] && strchr(host, ':') == NULL &&
 		strspn(host, "0123456789.") != strlen(host) &&

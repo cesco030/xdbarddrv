@@ -2,8 +2,9 @@
  * xdbmy.c - MySQL / MariaDB backend of the XDB driver.
  *
  * A small native client for the MySQL wire protocol (no client library):
- * handshake v10, mysql_native_password and caching_sha2_password, optional
- * TLS, text queries, server-side prepared statements with read-only
+ * handshake v10, mysql_native_password, caching_sha2_password and
+ * sha256_password (the password itself of the last two only over TLS),
+ * optional TLS, text queries, server-side prepared statements with read-only
  * cursors (COM_STMT_EXECUTE + COM_STMT_FETCH) so that several cursors and
  * other statements can be active on one connection.
  *
@@ -20,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <float.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -43,6 +45,7 @@
 #define CF_UNSIGNED 0x0020
 #define CF_HEX 0x8000			/* our own marker (the wire value NUM_FLAG is not used) */
 
+#define ST_IN_TRANS 0x0001
 #define ST_MORE_RESULTS 0x0008
 #define ST_CURSOR_EXISTS 0x0040
 #define ST_LAST_ROW_SENT 0x0080
@@ -57,13 +60,18 @@ typedef struct
 	int			fd;
 	xtls	   *tls;
 	unsigned char seq;
+	unsigned char *rb;			/* what was read from the line and is not used yet */
+	size_t		rlen;
+	size_t		rpos;
 	unsigned char *buf;			/* last packet read */
 	size_t		len;
 	size_t		cap;
 	int			version;		/* major * 100 + minor */
 	int			status;
-	int			in_txn;
+	int			in_txn;			/* a unit of work is under way (between XT_BEGIN and its end) */
+	int			ac_off;			/* the session has autocommit off (see my_txn) */
 	int			dead;			/* the connection failed: nothing more is sent on it */
+	const char *why;			/* what was wrong with the last packet read, for the message */
 	/* from the greeting of the server, for XDB CONNECTION INFO */
 	char		vertext[80];
 	unsigned long thread;		/* its number for this connection */
@@ -103,6 +111,8 @@ typedef struct
 	int			inl_used;
 	int		   *sink;			/* columns whose values go to files (PUT_xLOB_TO_FILE) */
 	int			nsink;
+	char	   *sql;			/* its text, to prepare it once more (stmt_again) */
+	unsigned char *ptype;		/* the type each parameter was last sent in */
 } mystmt;
 
 /* --------------------------------------------------------------- hashing */
@@ -309,20 +319,60 @@ scramble_sha2(const char *pw, const unsigned char *nonce, unsigned char *out)
 
 /* ------------------------------------------------------------ packet I/O */
 
+/*
+ * Reading goes through a buffer: a row is a packet of its own, header and
+ * body, and read one by one from the line (or from the TLS layer) that is
+ * two calls for every row.  One call brings what has arrived, often some
+ * hundred rows.  Between an answer and the next command the buffer is
+ * empty; a piece longer than the buffer is read straight to where it goes.
+ */
+#define RBUF 32768
+
+static int
+io_raw(myc *c, unsigned char *b, size_t n)
+{
+	return c->tls ? xtls_read(c->tls, b, (int) (n > 0x40000000 ? 0x40000000 : n)) :
+		(int) recv(c->fd, (char *) b, n, 0);
+}
+
 static int
 io_read(myc *c, unsigned char *b, size_t n)
 {
 	while (n > 0)
 	{
-		int			r = c->tls ? xtls_read(c->tls, b, (int) n) : (int) recv(c->fd, (char *) b, n, 0);
+		size_t		have = c->rlen - c->rpos;
+		int			r;
 
+		if (have > 0)
+		{
+			if (have > n)
+				have = n;
+			memcpy(b, c->rb + c->rpos, have);
+			c->rpos += have;
+			b += have;
+			n -= have;
+			continue;
+		}
+		if (c->rb == NULL || n >= RBUF)
+		{
+			r = io_raw(c, b, n);
+			if (r <= 0)
+			{
+				c->dead = 1;
+				return -1;
+			}
+			b += r;
+			n -= (size_t) r;
+			continue;
+		}
+		r = io_raw(c, c->rb, RBUF);
 		if (r <= 0)
 		{
 			c->dead = 1;
 			return -1;
 		}
-		b += r;
-		n -= (size_t) r;
+		c->rlen = (size_t) r;
+		c->rpos = 0;
 	}
 	return 0;
 }
@@ -347,6 +397,8 @@ io_write(myc *c, const unsigned char *b, size_t n)
 	return 0;
 }
 
+#define PKT_PAD 64				/* zeros kept behind a packet that was read */
+
 /* reads one logical packet into c->buf (joining 16 MB continuation packets) */
 static int
 pkt_read(myc *c)
@@ -354,47 +406,102 @@ pkt_read(myc *c)
 	unsigned char h[4];
 	size_t		l;
 
+	int			early = 0;
+
 	c->len = 0;
+	c->why = NULL;
 	do
 	{
 		if (io_read(c, h, 4) < 0)
 			return -1;
 		l = (size_t) h[0] | ((size_t) h[1] << 8) | ((size_t) h[2] << 16);
-		c->seq = (unsigned char) (h[3] + 1);
-		if (c->len + l + 1 > c->cap)
+		if (h[3] != c->seq)
 		{
-			unsigned char *nb = realloc(c->buf, c->len + l + 1024);
+			/*
+			 * Not the packet that is due.  One case is in order: the server
+			 * said something before it had the command, as it does when it
+			 * ends a session that was idle too long (an error packet with
+			 * the number 0, where the answer to a command begins with 1).
+			 * That packet is read, the caller finds the error in it, and the
+			 * connection is of no use after it.  Anything else: client and
+			 * server are out of step, nothing read from here on can be trusted.
+			 */
+			if (c->seq == 1 && h[3] == 0 && c->len == 0 && l > 0 && l < 0xFFFFFF)
+				early = 1;
+			else
+			{
+				c->dead = 1;
+				c->why = "packets out of order";
+				return -1;
+			}
+		}
+		c->seq = (unsigned char) (h[3] + 1);
+		if (c->len + l + PKT_PAD > c->cap)
+		{
+			unsigned char *nb = realloc(c->buf, c->len + l + 1024 + PKT_PAD);
 
 			if (nb == NULL)
 				return -1;
 			c->buf = nb;
-			c->cap = c->len + l + 1024;
+			c->cap = c->len + l + 1024 + PKT_PAD;
 		}
 		if (l > 0 && io_read(c, c->buf + c->len, l) < 0)
 			return -1;
 		c->len += l;
 	} while (l == 0xFFFFFF);
-	c->buf[c->len] = 0;
+	/*
+	 * Zeros behind the packet: a field of fixed size that a packet is too
+	 * short for is then read as zeros, not as whatever lies behind it.
+	 */
+	memset(c->buf + c->len, 0, PKT_PAD);
+	if (early)
+	{
+		c->dead = 1;
+		if (c->buf[0] != 0xFF)
+		{
+			c->why = "packets out of order";
+			return -1;
+		}
+	}
 	return 0;
+}
+
+/* bytes of the packet from p on; 0 when p is behind its end */
+static size_t
+pkt_left(const myc *c, const unsigned char *p)
+{
+	const unsigned char *end = c->buf + c->len;
+
+	return (p >= c->buf && p < end) ? (size_t) (end - p) : 0;
 }
 
 static int
 pkt_write(myc *c, const unsigned char *payload, size_t l)
 {
 	unsigned char *b;
+	size_t		n;
 	int			rc;
 
-	if (l >= 0xFFFFFF)
-		return -1;				/* statements of 16 MB and more are not supported */
-	b = malloc(l + 4);
+	/*
+	 * A packet holds 16 MB - 1 at most.  What is longer goes in pieces of
+	 * exactly that size, and the piece that ends it is shorter (empty when
+	 * the length is a multiple of it).
+	 */
+	b = malloc((l < 0xFFFFFF ? l : 0xFFFFFF) + 4);
 	if (b == NULL)
 		return -1;
-	b[0] = (unsigned char) (l & 0xFF);
-	b[1] = (unsigned char) ((l >> 8) & 0xFF);
-	b[2] = (unsigned char) ((l >> 16) & 0xFF);
-	b[3] = c->seq++;
-	memcpy(b + 4, payload, l);
-	rc = io_write(c, b, l + 4);
+	do
+	{
+		n = l < 0xFFFFFF ? l : 0xFFFFFF;
+		b[0] = (unsigned char) (n & 0xFF);
+		b[1] = (unsigned char) ((n >> 8) & 0xFF);
+		b[2] = (unsigned char) ((n >> 16) & 0xFF);
+		b[3] = c->seq++;
+		memcpy(b + 4, payload, n);
+		rc = io_write(c, b, n + 4);
+		payload += n;
+		l -= n;
+	} while (rc == 0 && n == 0xFFFFFF);
 	free(b);
 	return rc;
 }
@@ -482,6 +589,13 @@ io_err(xbe_err *e, const char *what)
 	snprintf(e->msg, sizeof e->msg, "MySQL connection lost (%s)", what);
 }
 
+/* a packet could not be read: the line broke, or the packet was not the one that was due */
+static void
+rd_err(const myc *c, xbe_err *e)
+{
+	io_err(e, c->why ? c->why : "read");
+}
+
 /* ERR packet in c->buf -> xbe_err */
 static void
 pkt_err(myc *c, xbe_err *e)
@@ -529,19 +643,11 @@ pkt_err(myc *c, xbe_err *e)
 		snprintf(e->sqlstate, sizeof e->sqlstate, "28000");
 	/*
 	 * A deadlock victim loses its whole transaction (a lock wait timeout
-	 * only the statement).  Start a new transaction right away, so that
-	 * what follows is not committed statement by statement.
+	 * only the statement).  What follows is in a new transaction by itself:
+	 * the session has autocommit off while a unit of work is under way.
 	 */
 	if (e->native == 1213 && c->in_txn)
-	{
-		static const unsigned char q[] = "\003START TRANSACTION";
-		xbe_err		keep = *e;
-
-		c->seq = 0;
-		if (pkt_write(c, q, sizeof q - 1) == 0 && pkt_read(c) == 0)
-			keep.rolled_back = 1;
-		*e = keep;
-	}
+		e->rolled_back = 1;
 }
 
 static int
@@ -580,6 +686,7 @@ my_disconnect(void *vc)
 		close(c->fd);
 	}
 	free(c->buf);
+	free(c->rb);
 	free(c->piece);
 	free(c);
 }
@@ -612,9 +719,16 @@ attempt(const char *host, const char *port, int timeout, int sockbuf, const char
 		free(c);
 		return NULL;
 	}
+	c->rb = malloc(RBUF);		/* without it every read goes to the line, which works too */
+	/* the time the connection may take is the time the whole sign-on may take */
+	xnet_rcv_timeout(c->fd, timeout);
+	errno = 0;
 	if (pkt_read(c) < 0)
 	{
-		io_err(e, "handshake");
+		if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ETIMEDOUT)
+			xnet_err(e, "08001", "the MySQL server did not answer in the time a connection may take (handshake)");
+		else
+			io_err(e, "handshake");
 		goto fail;
 	}
 	p = c->buf;
@@ -639,6 +753,7 @@ attempt(const char *host, const char *port, int timeout, int sockbuf, const char
 	caps = le(p, 2);
 	p += 2;
 	c->srvcoll = p[0];
+	c->status = (int) le(p + 1, 2);
 	p += 1 + 2;					/* charset, status */
 	caps |= le(p, 2) << 16;
 	p += 2;
@@ -683,6 +798,21 @@ attempt(const char *host, const char *port, int timeout, int sockbuf, const char
 			io_err(e, "write");
 			goto fail;
 		}
+		/*
+		 * The server waits for the TLS handshake now.  Bytes that came
+		 * behind its greeting were sent in clear by whoever sits on the
+		 * line; read as part of the encrypted conversation they would be
+		 * taken for the server's.
+		 */
+		if (c->rpos < c->rlen)
+		{
+			memset(e, 0, sizeof *e);
+			snprintf(e->sqlstate, sizeof e->sqlstate, "08001");
+			snprintf(e->msg, sizeof e->msg, "data behind the greeting of the server before encryption began: "
+					 "the connection is not continued");
+			*tls_failed = 2;
+			goto fail;
+		}
 		c->tls = xtls_start(c->fd, host, verify, terr, sizeof terr);
 		if (c->tls == NULL)
 		{
@@ -697,9 +827,13 @@ attempt(const char *host, const char *port, int timeout, int sockbuf, const char
 		alen = scramble_sha2(pw, nonce, auth);
 	else
 	{
+		/*
+		 * Any other method the server begins with: the answer is the one of
+		 * mysql_native_password and says so, and the server asks for the
+		 * method of the login when that is another one.
+		 */
 		alen = scramble_native(pw, nonce, auth);
-		if (strcmp(plugin, "mysql_native_password") != 0)
-			alen = 0;			/* server will switch to a plugin we know */
+		snprintf(plugin, sizeof plugin, "mysql_native_password");
 	}
 	o = out + 32;
 	n = snprintf((char *) o, 300, "%s", user);
@@ -743,11 +877,40 @@ attempt(const char *host, const char *port, int timeout, int sockbuf, const char
 				alen = scramble_sha2(pw, nonce, auth);
 			else if (strcmp(plugin, "mysql_native_password") == 0)
 				alen = scramble_native(pw, nonce, auth);
+			else if (strcmp(plugin, "sha256_password") == 0)
+			{
+				/*
+				 * sha256_password: the password itself, only over TLS.  It
+				 * is also what a server from 8.0 on may ask of a user it
+				 * does not know, to answer "access denied" like for a wrong
+				 * password.
+				 */
+				if (c->tls == NULL)
+				{
+					memset(e, 0, sizeof *e);
+					snprintf(e->sqlstate, sizeof e->sqlstate, "28000");
+					snprintf(e->msg, sizeof e->msg,
+							 "sha256_password needs TLS for this login (use tls=require); "
+							 "a server also asks for it when it does not know the user");
+					*tls_failed = 2;
+					goto fail;
+				}
+				if (pkt_write(c, (const unsigned char *) pw, strlen(pw) + 1) < 0)
+				{
+					io_err(e, "write");
+					goto fail;
+				}
+				continue;
+			}
 			else
 			{
 				memset(e, 0, sizeof *e);
 				snprintf(e->sqlstate, sizeof e->sqlstate, "28000");
-				snprintf(e->msg, sizeof e->msg, "authentication plugin %s is not supported", plugin);
+				if (plugin[0] == '\0')
+					snprintf(e->msg, sizeof e->msg, "the server asks for the password method of before "
+							 "MySQL 4.1 for this login, which is not supported");
+				else
+					snprintf(e->msg, sizeof e->msg, "authentication plugin %s is not supported", plugin);
 				goto fail;
 			}
 			if (pkt_write(c, auth, alen) < 0)
@@ -781,12 +944,14 @@ attempt(const char *host, const char *port, int timeout, int sockbuf, const char
 		io_err(e, "unexpected authentication packet");
 		goto fail;
 	}
+	xnet_rcv_timeout(c->fd, 0);
 	return c;
 fail:
 	if (c->tls)
 		xtls_end(c->tls);
 	close(c->fd);
 	free(c->buf);
+	free(c->rb);
 	free(c);
 	return NULL;
 }
@@ -861,7 +1026,7 @@ my_ping(void *vc, int timeout)
 
 	if (c->dead || c->fd < 0)
 		return -1;
-	if (xnet_dead(c->fd, c->tls == NULL))
+	if (c->rpos < c->rlen || xnet_dead(c->fd, c->tls == NULL))
 	{
 		c->dead = 1;
 		return -1;
@@ -896,6 +1061,19 @@ mbmax(unsigned cs)
 	return 1;
 }
 
+/*
+ * Characters of a column from the bytes the server tells (four bytes of
+ * the packet: nothing says they are a length a table could have), two
+ * characters a byte where the bytes are handed over in hexadecimal.
+ */
+static int
+col_chars(unsigned len, unsigned cs, int hex)
+{
+	unsigned long long n = (unsigned long long) (len / (unsigned) mbmax(cs)) * (hex ? 2 : 1);
+
+	return n > 0x3FFFFFFF ? 0x3FFFFFFF : (int) n;
+}
+
 /* column definition packet -> xbe_col (+ wire type and flags) */
 static void
 coldef(myc *c, xbe_col *x, unsigned char *type, unsigned short *flags)
@@ -907,23 +1085,28 @@ coldef(myc *c, xbe_col *x, unsigned char *type, unsigned short *flags)
 				dec;
 	int			i;
 
+	/* a length that leads out of the packet ends at its end: zeros follow there (PKT_PAD) */
+#define STEP(n) (p += ((n) <= pkt_left(c, p) ? (n) : pkt_left(c, p)))
 	for (i = 0; i < 4; i++)
 	{
 		l = lenenc(&p, NULL);
-		p += l;
+		STEP(l);
 	}
 	l = lenenc(&p, NULL);
+	if (l > pkt_left(c, p))
+		l = pkt_left(c, p);
 	snprintf(x->name, sizeof x->name, "%.*s", (int) (l > 63 ? 63 : l), (const char *) p);
 	p += l;
 	l = lenenc(&p, NULL);
-	p += l;
-	p += 1;
+	STEP(l);
+	STEP(1);
+#undef STEP
 	cs = le(p, 2);
 	len = le(p + 2, 4);
 	*type = p[6];
 	*flags = (unsigned short) (le(p + 7, 2) & ~CF_HEX);
-	if (cs == 63 && (*type == 15 || (*type >= 249 && *type <= 254)))
-		*flags |= CF_HEX;		/* BINARY, VARBINARY, BLOB */
+	if ((cs == 63 && (*type == 15 || (*type >= 249 && *type <= 254))) || *type == 255 || *type == 242)
+		*flags |= CF_HEX;		/* BINARY, VARBINARY, BLOB; GEOMETRY and the VECTOR of MySQL 9 (bytes that begin with zeros) */
 	dec = p[9];
 	x->len = 0;
 	x->prec = 0;
@@ -942,7 +1125,8 @@ coldef(myc *c, xbe_col *x, unsigned char *type, unsigned short *flags)
 		case 8:
 		case 16:
 			x->kind = XK_BIGINT;
-			if (*type == 8 && (*flags & 0x20))
+			/* 64 bits without a sign have no room in a BIGINT: BIGINT UNSIGNED and BIT(64) */
+			if ((*type == 8 && (*flags & 0x20)) || (*type == 16 && len >= 64))
 			{
 				x->kind = XK_DECIMAL;
 				x->prec = 20;
@@ -956,7 +1140,7 @@ coldef(myc *c, xbe_col *x, unsigned char *type, unsigned short *flags)
 		case 246:
 			x->kind = XK_DECIMAL;
 			x->scale = (int) dec;
-			x->prec = (int) len - (dec > 0 ? 1 : 0) - ((*flags & 0x20) ? 0 : 1);
+			x->prec = (int) (len > 1000 ? 1000 : len) - (dec > 0 ? 1 : 0) - ((*flags & 0x20) ? 0 : 1);
 			if (x->prec < 1)
 				x->prec = 1;
 			break;
@@ -973,12 +1157,15 @@ coldef(myc *c, xbe_col *x, unsigned char *type, unsigned short *flags)
 			break;
 		case 254:
 			x->kind = (*flags & (0x900 | CF_HEX)) ? XK_VARCHAR : XK_CHAR;	/* ENUM / SET */
-			x->len = (int) (len / (unsigned) mbmax(cs)) * ((*flags & CF_HEX) ? 2 : 1);
+			x->len = col_chars(len, cs, (*flags & CF_HEX) != 0);
+			x->u8 = (*flags & CF_HEX) ? 1 : mbmax(cs) >= 4 ? 4 : 3;
 			break;
 		case 15:
 		case 253:
+		case 242:				/* VECTOR (MySQL 9): four bytes an entry, the length is known */
 			x->kind = XK_VARCHAR;
-			x->len = (int) (len / (unsigned) mbmax(cs)) * ((*flags & CF_HEX) ? 2 : 1);
+			x->len = col_chars(len, cs, (*flags & CF_HEX) != 0);
+			x->u8 = (*flags & CF_HEX) ? 1 : mbmax(cs) >= 4 ? 4 : 3;
 			break;
 		default:				/* TEXT/BLOB families, JSON, GEOMETRY, NULL */
 			x->kind = XK_VARCHAR;
@@ -1012,6 +1199,8 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 		return -1;
 	if (xnet_batch_room(b, s->ncols) < 0)
 		return -1;
+	for (j = 0; j < s->ncols; j++)
+		b->val[b->nrows * s->ncols + j] = NULL;
 	p += (s->ncols + 7 + 2) / 8;
 	for (j = 0; j < s->ncols; j++)
 	{
@@ -1027,6 +1216,9 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 		*slot = NULL;
 		if (nb[(j + 2) / 8] & (1 << ((j + 2) % 8)))
 			continue;
+		/* a row that ends before its last column is no row (the NULL bits are in the packet too) */
+		if (pkt_left(c, p) == 0)
+			goto bad;
 		switch (s->ctype[j])
 		{
 			case 1:
@@ -1061,7 +1253,17 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 				for (n = 0; n < 4; n++)
 					r[n] = *(char *) &one ? p[n] : p[3 - n];
 				memcpy(&f, r, 4);
-				snprintf(t, sizeof t, "%.9g", (double) f);
+				/*
+				 * The shortest number that reads back as this single-precision
+				 * value: 0.1 for a FLOAT column that holds 0.1, where nine
+				 * digits would hand the program 0.100000001.
+				 */
+				for (n = 6; n <= 9; n++)
+				{
+					snprintf(t, sizeof t, "%.*g", n, (double) f);
+					if ((float) strtod(t, NULL) == f)
+						break;
+				}
 				p += 4;
 				break;
 			case 5:
@@ -1085,6 +1287,8 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 							 (unsigned) p[3], (unsigned) p[4],
 							 n >= 7 ? (unsigned) p[5] : 0, n >= 7 ? (unsigned) p[6] : 0,
 							 n >= 7 ? (unsigned) p[7] : 0, n >= 11 ? le(p + 8, 4) : 0);
+				if ((size_t) n + 1 > pkt_left(c, p))
+					goto bad;
 				p += 1 + n;
 				break;
 			case 11:
@@ -1094,6 +1298,8 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 				else
 					snprintf(t, sizeof t, "%s%02u:%02u:%02u", p[1] ? "-" : "",
 							 le(p + 2, 4) * 24 + p[6], (unsigned) p[7], (unsigned) p[8]);
+				if ((size_t) n + 1 > pkt_left(c, p))
+					goto bad;
 				p += 1 + n;
 				break;
 			case 16:			/* BIT: big-endian bytes */
@@ -1101,6 +1307,8 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 					unsigned long long v = 0;
 
 					l = lenenc(&p, NULL);
+					if (l > 8 || l > pkt_left(c, p))
+						goto bad;
 					for (n = 0; n < (int) l; n++)
 						v = (v << 8) | p[n];
 					snprintf(t, sizeof t, "%llu", v);
@@ -1109,9 +1317,11 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 				}
 			default:			/* everything else is a length-encoded string */
 				l = lenenc(&p, NULL);
+				if (l > pkt_left(c, p))
+					goto bad;
 				*slot = malloc((size_t) l * ((s->cflags[j] & CF_HEX) ? 2 : 1) + 1);
 				if (*slot == NULL)
-					return -1;
+					goto bad;
 				if (s->cflags[j] & CF_HEX)
 				{
 					static const char hx[] = "0123456789ABCDEF";
@@ -1134,11 +1344,40 @@ row_decode(myc *c, mystmt *s, xbe_batch *b)
 		}
 		*slot = strdup(t);
 		if (*slot == NULL)
-			return -1;
+			goto bad;
 	}
 	b->nrows++;
 	b->ncols = s->ncols;
 	return 0;
+bad:
+	/* a row that cannot be read: what was taken of it goes */
+	for (j = 0; j < s->ncols; j++)
+	{
+		free(b->val[b->nrows * s->ncols + j]);
+		b->val[b->nrows * s->ncols + j] = NULL;
+	}
+	return -1;
+}
+
+/*
+ * The number of columns a result begins with, -1 when it is none a server
+ * sends (a result has one column at least and 4096 at most; the packet that
+ * asks the client for a local file, which this driver never sends, reads
+ * as none as well): what follows such an answer cannot be followed, the
+ * connection is given up.
+ */
+#define COLS_MAX 4096
+
+static int
+col_count(myc *c, const unsigned char **p, xbe_err *e)
+{
+	unsigned long long n = lenenc(p, NULL);
+
+	if (n >= 1 && n <= COLS_MAX)
+		return (int) n;
+	c->dead = 1;
+	io_err(e, "an answer that cannot be read");
+	return -1;
 }
 
 /* reads column definitions (count known) and the EOF packet that follows */
@@ -1154,7 +1393,7 @@ read_coldefs(myc *c, int n, xbe_col *cols, unsigned char *types, unsigned short 
 	{
 		if (pkt_read(c) < 0)
 		{
-			io_err(e, "read");
+			rd_err(c, e);
 			return -1;
 		}
 		coldef(c, cols ? &cols[i] : &dummy, types ? &types[i] : &t, flags ? &flags[i] : &f);
@@ -1163,7 +1402,7 @@ read_coldefs(myc *c, int n, xbe_col *cols, unsigned char *types, unsigned short 
 	{
 		if (pkt_read(c) < 0)
 		{
-			io_err(e, "read");
+			rd_err(c, e);
 			return -1;
 		}
 		if (is_eof(c))
@@ -1184,7 +1423,7 @@ drain(myc *c, int binary, long long *rows, xbe_err *e)
 
 		if (pkt_read(c) < 0)
 		{
-			io_err(e, "read");
+			rd_err(c, e);
 			return -1;
 		}
 		p = c->buf;
@@ -1206,15 +1445,15 @@ drain(myc *c, int binary, long long *rows, xbe_err *e)
 		}
 		else
 		{
-			int			n = (int) lenenc(&p, NULL);
+			int			n = col_count(c, &p, e);
 
-			if (read_coldefs(c, n, NULL, NULL, NULL, e) < 0)
+			if (n < 0 || read_coldefs(c, n, NULL, NULL, NULL, e) < 0)
 				return -1;
 			for (;;)
 			{
 				if (pkt_read(c) < 0)
 				{
-					io_err(e, "read");
+					rd_err(c, e);
 					return -1;
 				}
 				if (c->buf[0] == 0xFF)
@@ -1256,7 +1495,7 @@ rows_at_once(myc *c, mystmt *keep, xbe_err *e)
 	{
 		if (pkt_read(c) < 0)
 		{
-			io_err(e, "read");
+			rd_err(c, e);
 			return -1;
 		}
 		if (c->buf[0] == 0xFF)
@@ -1351,7 +1590,7 @@ text_query(myc *c, const char *sql, xbe_batch *b, xbe_err *e)
 		return -1;
 	if (pkt_read(c) < 0)
 	{
-		io_err(e, "read");
+		rd_err(c, e);
 		return -1;
 	}
 	p = c->buf;
@@ -1362,14 +1601,14 @@ text_query(myc *c, const char *sql, xbe_batch *b, xbe_err *e)
 	}
 	if (p[0] == 0x00)
 		return 0;				/* no result set */
-	n = (int) lenenc(&p, NULL);
-	if (read_coldefs(c, n, NULL, NULL, NULL, e) < 0)
+	n = col_count(c, &p, e);
+	if (n < 0 || read_coldefs(c, n, NULL, NULL, NULL, e) < 0)
 		return -1;
 	for (;;)
 	{
 		if (pkt_read(c) < 0)
 		{
-			io_err(e, "read");
+			rd_err(c, e);
 			batch_release(b);
 			return -1;
 		}
@@ -1394,6 +1633,18 @@ text_query(myc *c, const char *sql, xbe_batch *b, xbe_err *e)
 			unsigned long long vl = lenenc(&p, &isnull);
 			char	   *v = NULL;
 
+			if (vl > pkt_left(c, p))
+			{
+				/* a value longer than what is left of its packet: the answer cannot be followed */
+				b->nrows++;
+				b->ncols = n;
+				for (; j < n; j++)
+					b->val[(b->nrows - 1) * n + j] = NULL;
+				batch_release(b);
+				c->dead = 1;
+				io_err(e, "an answer that cannot be read");
+				return -1;
+			}
 			if (!isnull && (v = malloc((size_t) vl + 1)) != NULL)
 			{
 				memcpy(v, p, (size_t) vl);
@@ -1418,7 +1669,7 @@ my_maxpkt(myc *c, xbe_err *e)
 		return 0;
 	if (text_query(c, "SELECT @@max_allowed_packet", &b, e) < 0)
 		return -1;
-	if (b.nrows == 1 && b.val[0])
+	if (b.nrows == 1 && b.ncols >= 1 && b.val[0])
 		c->maxpkt = strtoll(b.val[0], NULL, 10);
 	batch_release(&b);
 	if (c->maxpkt < 1024)
@@ -1542,10 +1793,21 @@ sr_head(mysr *r)
 {
 	unsigned char h[4];
 
+	r->c->why = NULL;
 	if (io_read(r->c, h, 4) < 0)
 		return -1;
 	r->frag = (size_t) h[0] | ((size_t) h[1] << 8) | ((size_t) h[2] << 16);
 	r->left = r->frag;
+	if (h[3] != r->c->seq)
+	{
+		/* as in pkt_read: only what the server said before it had the command may come early */
+		r->c->dead = 1;
+		if (!(r->c->seq == 1 && h[3] == 0))
+		{
+			r->c->why = "packets out of order";
+			return -1;
+		}
+	}
 	r->c->seq = (unsigned char) (h[3] + 1);
 	return 0;
 }
@@ -1830,7 +2092,7 @@ fetch_sink(myc *c, mystmt *s, xbe_batch *b, xbe_err *e)
 		if (sr_begin(c, &r) < 0 || r.left == 0 || sr_read(&r, &first, 1) < 0)
 		{
 			c->dead = 1;
-			io_err(e, "read");
+			rd_err(c, e);
 			batch_release(b);
 			return -1;
 		}
@@ -1838,16 +2100,16 @@ fetch_sink(myc *c, mystmt *s, xbe_batch *b, xbe_err *e)
 		{
 			/* the end of the rows, or an error: a short packet, read whole */
 			c->len = 0;
-			if (buf_need(c, r.frag + 1) < 0 || sr_read(&r, c->buf + 1, r.left) < 0)
+			if (buf_need(c, r.frag + PKT_PAD) < 0 || sr_read(&r, c->buf + 1, r.left) < 0)
 			{
 				c->dead = 1;
-				io_err(e, "read");
+				rd_err(c, e);
 				batch_release(b);
 				return -1;
 			}
 			c->buf[0] = first;
 			c->len = r.frag;
-			c->buf[c->len] = 0;
+			memset(c->buf + c->len, 0, PKT_PAD);
 			if (first == 0xFF)
 			{
 				pkt_err(c, e);
@@ -1857,13 +2119,15 @@ fetch_sink(myc *c, mystmt *s, xbe_batch *b, xbe_err *e)
 			c->status = (int) le(c->buf + 3, 2);
 			if ((c->status & ST_LAST_ROW_SENT) || b->nrows == 0)
 				s->done = 1;
+			if (c->status & ST_LAST_ROW_SENT)
+				s->cursor = 0;	/* the server has closed it (see my_fetch) */
 			b->eof = s->done;
 			break;
 		}
 		if (first != 0x00 || row_stream(c, s, &r, b, &fe, &fbad) < 0)
 		{
 			c->dead = 1;
-			io_err(e, "read");
+			rd_err(c, e);
 			batch_release(b);
 			return -1;
 		}
@@ -1999,6 +2263,8 @@ my_stmt_free(void *vc, void *vs)
 	free(s->cflags);
 	free(s->ocols);
 	free(s->sink);
+	free(s->sql);
+	free(s->ptype);
 	free(s);
 }
 
@@ -2030,7 +2296,7 @@ my_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 	free(q);
 	if (pkt_read(c) < 0)
 	{
-		io_err(e, "read");
+		rd_err(c, e);
 		return -1;
 	}
 	if (c->buf[0] == 0xFF)
@@ -2050,8 +2316,10 @@ my_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 	s->ncols = (int) le(c->buf + 5, 2);
 	s->pcols = s->ncols;
 	s->nparams = (int) le(c->buf + 7, 2);
+	s->sql = strdup(sql);
 	if (read_coldefs(c, s->nparams, NULL, NULL, NULL, e) < 0)
 	{
+		free(s->sql);
 		free(s);
 		return -1;
 	}
@@ -2067,6 +2335,7 @@ my_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 			*cols = NULL;
 			free(s->ctype);
 			free(s->cflags);
+			free(s->sql);
 			free(s);
 			return -1;
 		}
@@ -2090,17 +2359,134 @@ my_describe(void *vc, const char *sql, xbe_col **cols, int *ncols, void **stmt, 
 }
 
 /*
- * COM_STMT_EXECUTE with all parameters sent as strings; a parameter that
- * stands for a file (my_lob_in) has been sent before it, piece by piece.
+ * COM_STMT_EXECUTE.  A parameter that stands for a file (my_lob_in) has
+ * been sent before it, piece by piece.
+ */
+/*
+ * The type a parameter travels in, by the kind of its host variable.  A
+ * number goes as a number: the server then does with it what it does with
+ * a number written into the statement.  Sent as text, 1 for a BIT column
+ * would be the character '1' and 0 the character '0' (which a BIT(1)
+ * column keeps as 1), 2 for an ENUM column the member named 2 and not the
+ * second one, and the sum of a number and 1 would be a floating point
+ * value.  Dates, times and timestamps go as their text, which the server
+ * reads as what the column or the comparison wants; as typed values the
+ * server would leave the microseconds off where they go into a character
+ * column, and compares a time with a character column in its own way.
  */
 static int
-stmt_execute(myc *c, mystmt *s, int np, char **pv, int cursor, xbe_err *e)
+param_type(int kind)
 {
-	size_t		need = 16 + (size_t) np * 12;
+	switch (kind)
+	{
+		case XK_SMALLINT:
+		case XK_INTEGER:
+		case XK_BIGINT:
+		case XK_BOOL:
+			return 8;			/* LONGLONG */
+		case XK_DOUBLE:
+			return 5;			/* DOUBLE */
+		case XK_DECIMAL:
+			return 246;			/* NEWDECIMAL: its digits as text, exact */
+		default:
+			return 253;			/* VAR_STRING */
+	}
+}
+
+/* the bytes of a number of type ty in b; 0 when v is not such a number */
+static int
+param_bin(int ty, const char *v, unsigned char *b)
+{
+	char	   *end;
+	int			i;
+
+	if (ty == 8)
+	{
+		long long	x;
+
+		errno = 0;
+		x = strtoll(v, &end, 10);
+		if (end == v || *end != '\0' || errno == ERANGE)
+			return 0;
+		for (i = 0; i < 8; i++)
+			b[i] = (unsigned char) (((unsigned long long) x >> (8 * i)) & 0xFF);
+		return 8;
+	}
+	if (ty == 5)
+	{
+		double		x = strtod(v, &end);
+		unsigned char r[8];
+		int			one = 1;
+
+		if (end == v || *end != '\0' || x != x || x > DBL_MAX || x < -DBL_MAX)
+			return 0;
+		memcpy(r, &x, 8);
+		for (i = 0; i < 8; i++)
+			b[i] = *(char *) &one ? r[i] : r[7 - i];
+		return 8;
+	}
+	return 0;
+}
+
+/*
+ * The statement once more on the server, under a new number: when a
+ * parameter comes in another type than the last time.  MySQL 8.0 fixes
+ * what a parameter is when the statement first runs; text sent later in
+ * the place of a number is then taken for bytes, and accented letters
+ * arrive in a column of another character set as the bytes of UTF-8.
+ */
+static int
+stmt_again(myc *c, mystmt *s, xbe_err *e)
+{
+	size_t		l = s->sql ? strlen(s->sql) : 0;
+	unsigned char *q;
+	unsigned char z[5];
+	int			nc,
+				np;
+
+	if (s->sql == NULL || (q = malloc(l + 1)) == NULL)
+		return -1;
+	z[0] = 0x19;
+	put_le(z + 1, s->id, 4);
+	c->seq = 0;
+	pkt_write(c, z, 5);			/* COM_STMT_CLOSE has no reply */
+	q[0] = 0x16;
+	memcpy(q + 1, s->sql, l);
+	if (cmd(c, q, l + 1, e) < 0)
+	{
+		free(q);
+		return -1;
+	}
+	free(q);
+	if (pkt_read(c) < 0)
+	{
+		rd_err(c, e);
+		return -1;
+	}
+	if (c->buf[0] == 0xFF)
+	{
+		pkt_err(c, e);
+		return -1;
+	}
+	s->id = le(c->buf + 1, 4);
+	nc = (int) le(c->buf + 5, 2);
+	np = (int) le(c->buf + 7, 2);
+	/* the descriptions are those of before: read and left */
+	if (read_coldefs(c, np, NULL, NULL, NULL, e) < 0 || read_coldefs(c, nc, NULL, NULL, NULL, e) < 0)
+		return -1;
+	s->cursor = 0;
+	return 0;
+}
+
+static int
+stmt_execute(myc *c, mystmt *s, int np, char **pv, const int *pk, int cursor, xbe_err *e)
+{
+	size_t		need = 16 + (size_t) np * 28;
 	unsigned char *q,
 			   *o;
 	int			i,
-				rc;
+				rc,
+				changed = 0;
 
 	if (np != s->nparams)
 	{
@@ -2110,6 +2496,24 @@ stmt_execute(myc *c, mystmt *s, int np, char **pv, int cursor, xbe_err *e)
 				 s->nparams, np);
 		return -1;
 	}
+	if (np > 0 && s->ptype == NULL)
+	{
+		s->ptype = calloc((size_t) np, 1);
+		if (s->ptype == NULL)
+			return -1;
+	}
+	for (i = 0; i < np; i++)
+	{
+		int			k = lsrc_of(c, pv[i]);
+		unsigned char ty = (unsigned char) (k >= 0 ? (c->lsrc[k].kind == XLOB_BLOB ? 252 : 253) :
+											param_type(pk ? pk[i] : XK_VARCHAR));
+
+		if (s->ptype[i] != 0 && s->ptype[i] != ty)
+			changed = 1;
+		s->ptype[i] = ty;
+	}
+	if (changed && stmt_again(c, s, e) < 0)
+		return -1;
 	for (i = 0; i < np; i++)
 	{
 		int			k = lsrc_of(c, pv[i]);
@@ -2129,32 +2533,87 @@ stmt_execute(myc *c, mystmt *s, int np, char **pv, int cursor, xbe_err *e)
 	if (np > 0)
 	{
 		unsigned char *nullmap = o;
+		unsigned char *types;
 
 		o += (np + 7) / 8;
 		*o++ = 1;				/* types follow */
+		types = o;
+		o += 2 * np;
 		for (i = 0; i < np; i++)
 		{
-			int			k = lsrc_of(c, pv[i]);
-
+			types[2 * i] = s->ptype[i];
+			types[2 * i + 1] = 0;
 			if (pv[i] == NULL)
 				nullmap[i / 8] |= (unsigned char) (1 << (i % 8));
-			/* VAR_STRING: the server converts; the bytes of a file are a BLOB */
-			*o++ = (k >= 0 && c->lsrc[k].kind == XLOB_BLOB) ? 252 : 253;
-			*o++ = 0;
-		}
-		for (i = 0; i < np; i++)
-			if (pv[i] && lsrc_of(c, pv[i]) < 0)
+			else if (lsrc_of(c, pv[i]) < 0)
 			{
-				size_t		l = strlen(pv[i]);
+				unsigned char bin[8];
+				int			bl = param_bin(s->ptype[i], pv[i], bin);
 
-				o += put_lenenc(o, l);
-				memcpy(o, pv[i], l);
-				o += l;
+				if (bl > 0)
+				{
+					memcpy(o, bin, (size_t) bl);
+					o += bl;
+				}
+				else if (s->ptype[i] == 8 || s->ptype[i] == 5)
+				{
+					/* a host variable of a numeric type whose text is no number: not to be sent as one */
+					free(q);
+					memset(e, 0, sizeof *e);
+					snprintf(e->sqlstate, sizeof e->sqlstate, "22018");
+					snprintf(e->msg, sizeof e->msg, "parameter %d: \"%.60s\" is not a number", i + 1, pv[i]);
+					return -1;
+				}
+				else
+				{
+					size_t		l = strlen(pv[i]);
+
+					o += put_lenenc(o, l);
+					memcpy(o, pv[i], l);
+					o += l;
+				}
 			}
+		}
 	}
 	rc = cmd(c, q, (size_t) (o - q), e);
 	free(q);
 	return rc;
+}
+
+/* a statement as text (COM_QUERY); what it answers is read to its end */
+static int
+run_text(myc *c, const char *sql, long long *rows, xbe_err *e)
+{
+	size_t		l = strlen(sql);
+	unsigned char *q = malloc(l + 1);
+	int			rc;
+
+	if (q == NULL)
+		return -1;
+	q[0] = 0x03;				/* COM_QUERY */
+	memcpy(q + 1, sql, l);
+	rc = cmd(c, q, l + 1, e);
+	free(q);
+	return rc < 0 ? rc : drain(c, 0, rows, e);
+}
+
+/*
+ * Before a statement of a program.  A statement outside a unit of work on a
+ * session that had units of work (which only a job without commitment
+ * control can send, and the system does not let such a job use a
+ * connection of this kind): autocommit is turned on again, the statement is
+ * final when it has run.
+ */
+static void
+stmt_mode(myc *c)
+{
+	xbe_err		e;
+	long long	r;
+
+	if (c->in_txn || !c->ac_off || c->dead)
+		return;
+	if (run_text(c, "SET autocommit=1", &r, &e) == 0)
+		c->ac_off = 0;
 }
 
 static int
@@ -2168,19 +2627,9 @@ my_exec(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 
 	if (rows)
 		*rows = 0;
+	stmt_mode(c);
 	if (s == NULL && np == 0)
-	{
-		size_t		l = strlen(sql);
-		unsigned char *q = malloc(l + 1);
-
-		if (q == NULL)
-			return -1;
-		q[0] = 0x03;			/* COM_QUERY */
-		memcpy(q + 1, sql, l);
-		rc = cmd(c, q, l + 1, e);
-		free(q);
-		return rc < 0 ? rc : drain(c, 0, rows, e);
-	}
+		return run_text(c, sql, rows, e);
 	if (s == NULL)
 	{
 		xbe_col    *cols;
@@ -2211,7 +2660,7 @@ my_exec(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 			drain(c, 1, &r, e);
 		s->cursor = 0;
 	}
-	rc = stmt_execute(c, s, np, pv, 0, e);
+	rc = stmt_execute(c, s, np, pv, pk, 0, e);
 	if (rc == 0)
 		rc = drain(c, 1, rows, e);
 	if (temp)
@@ -2236,6 +2685,7 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		snprintf(e->msg, sizeof e->msg, "this statement cannot be opened as a cursor on MySQL");
 		return -1;
 	}
+	stmt_mode(c);
 	if (s->cursor)
 	{
 		unsigned char q[5];
@@ -2259,11 +2709,11 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 	 * arguments to with cursor") and MySQL 8.0 ends abnormally on a prepared
 	 * EXPLAIN (seen with 8.0.46: the server restarts).
 	 */
-	if (stmt_execute(c, s, np, pv, s->pcols > 0, e) < 0)
+	if (stmt_execute(c, s, np, pv, pk, s->pcols > 0, e) < 0)
 		return -1;
 	if (pkt_read(c) < 0)
 	{
-		io_err(e, "read");
+		rd_err(c, e);
 		return -1;
 	}
 	p = c->buf;
@@ -2291,7 +2741,9 @@ my_open(void *vc, void *stmt, const char *sql, int np, char **pv, const int *pk,
 		snprintf(e->msg, sizeof e->msg, "the statement ran and returned no rows: there is nothing to fetch");
 		return -1;
 	}
-	n = (int) lenenc(&p, NULL);
+	n = col_count(c, &p, e);
+	if (n < 0)
+		return -1;
 	bad = NULL;
 	if (s->pcols == 0)
 	{
@@ -2396,8 +2848,14 @@ my_fetch(void *vc, void *cur, int maxrows, xbe_batch *b, xbe_err *e)
 
 	memset(b, 0, sizeof *b);
 	b->release = batch_release;
+	if (s->done && s->cursor)
+	{
+		b->eof = 1;
+		return 0;
+	}
 	if (!s->cursor)
 	{
+		/* the rows the server sent at once, or a cursor that was read to its end */
 		if (s->inl.val && !s->inl_used)
 		{
 			*b = s->inl;
@@ -2405,11 +2863,6 @@ my_fetch(void *vc, void *cur, int maxrows, xbe_batch *b, xbe_err *e)
 			memset(&s->inl, 0, sizeof s->inl);
 			s->inl_used = 1;
 		}
-		b->eof = 1;
-		return 0;
-	}
-	if (s->done)
-	{
 		b->eof = 1;
 		return 0;
 	}
@@ -2424,7 +2877,7 @@ my_fetch(void *vc, void *cur, int maxrows, xbe_batch *b, xbe_err *e)
 	{
 		if (pkt_read(c) < 0)
 		{
-			io_err(e, "read");
+			rd_err(c, e);
 			batch_release(b);
 			return -1;
 		}
@@ -2439,6 +2892,14 @@ my_fetch(void *vc, void *cur, int maxrows, xbe_batch *b, xbe_err *e)
 			c->status = (int) le(c->buf + 3, 2);
 			if ((c->status & ST_LAST_ROW_SENT) || b->nrows == 0)
 				s->done = 1;
+			/*
+			 * With the flag that says the last row was sent the server has
+			 * closed the cursor by itself: there is nothing left to close
+			 * with a COM_STMT_RESET, which would be one more exchange with
+			 * the server for every query.
+			 */
+			if (c->status & ST_LAST_ROW_SENT)
+				s->cursor = 0;
 			b->eof = s->done;
 			break;
 		}
@@ -2475,27 +2936,45 @@ my_close(void *vc, void *cur)
 	s->done = 0;
 }
 
+/*
+ * Units of work.  A session that runs them has autocommit off: every
+ * statement is then in a transaction, and only COMMIT and ROLLBACK end one
+ * for good.  The server ends a transaction by itself when it runs a
+ * statement that commits implicitly (CREATE TABLE, ALTER, TRUNCATE, GRANT
+ * ..., a procedure that commits) and when it picks the session as the victim
+ * of a deadlock; what the unit of work does after that is in a new
+ * transaction then, where after a START TRANSACTION whose transaction is
+ * gone every statement would be committed as it ran and a ROLLBACK would
+ * take nothing back.  It is also the mode LOCK TABLES is made for, and the
+ * begin of a unit of work costs no exchange with the server.
+ */
 static int
 my_txn(void *vc, int op, xbe_err *e)
 {
+	myc		   *c = vc;
 	long long	r;
 
 	switch (op)
 	{
 		case XT_BEGIN:
-			((myc *) vc)->in_txn = 1;
-			return my_exec(vc, NULL, "START TRANSACTION", 0, NULL, NULL, &r, e);
+			c->in_txn = 1;
+			if (c->ac_off)
+				return 0;
+			if (run_text(c, "SET autocommit=0", &r, e) < 0)
+				return -1;
+			c->ac_off = 1;
+			return 0;
 		case XT_COMMIT:
-			((myc *) vc)->in_txn = 0;
-			if (my_exec(vc, NULL, "COMMIT", 0, NULL, NULL, &r, e) == 0)
+			c->in_txn = 0;
+			if (run_text(c, "COMMIT", &r, e) == 0)
 				return 0;
 			/* an error packet is the server's answer: it has not committed; a broken line tells nothing */
 			if (e->native != 0)
 				e->rolled_back = 1;
 			return -1;
 		case XT_ROLLBACK:
-			((myc *) vc)->in_txn = 0;
-			return my_exec(vc, NULL, "ROLLBACK", 0, NULL, NULL, &r, e);
+			c->in_txn = 0;
+			return run_text(c, "ROLLBACK", &r, e);
 		default:
 			return 0;			/* a failed statement does not abort the transaction */
 	}
@@ -2519,7 +2998,7 @@ my_info(void *vc, xbe_info_add add, void *ctx)
 	snprintf(v, sizeof v, "%lu", c->thread);
 	add(ctx, "link", "session_id", v);
 	add(ctx, "link", "state", c->dead ? "connection is not usable" :
-		(c->status & 0x0001) ? "in a transaction" : "idle");
+		(c->status & ST_IN_TRANS) ? "in a transaction" : "idle");
 	add(ctx, "link", "character_set", "utf8mb4");
 	snprintf(v, sizeof v, "%ld bytes", xnet_sockbuf(c->fd));
 	add(ctx, "link", "socket_buffer", v);
@@ -2536,10 +3015,23 @@ my_info(void *vc, xbe_info_add add, void *ctx)
 	add(ctx, "server", "max_allowed_packet", v);
 }
 
+/* how MySQL reads statement text (see XTF_* in xdb_be.h) */
+static int
+my_text_flags(void *vc)
+{
+	myc		   *c = vc;
+	int			f = XTF_HASH | XTF_DASHSPACE;
+
+	/* the server says with every answer whether sql_mode has NO_BACKSLASH_ESCAPES */
+	if (c == NULL || !(c->status & 0x0200))
+		f |= XTF_BACKSLASH | XTF_BACKSLASH_DQ;
+	return f;
+}
+
 const xbe_driver xbe_mysql = {
 	"mysql", "?", "MYS", 0,
 	my_connect, my_disconnect, my_version,
 	my_exec, my_describe, my_stmt_free,
 	my_open, my_fetch, my_close, my_txn, my_ping, &my_lob, my_info,
-	my_cursor_cols
+	my_cursor_cols, my_text_flags
 };

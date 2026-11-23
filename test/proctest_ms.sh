@@ -28,9 +28,9 @@ mkdir -p $D
 export XDB_EMU_JOBCCSID=280 XDB_PRF_EMU=$P XDB_CONF=/dev/null XDB_SH_MAXROWS=20
 T=${XDB_PROCT_TRACE:-N}
 {
-  echo "P|PROCMS|MSSQL|A|127.0.0.1|14333|master|babelfish_user|*OFF|10|0|1000|6|$T"
+  echo "P|PROCMS|MSSQL|A|127.0.0.1|${XDB_MS_PORT:-14333}|${XDB_MS_DB:-master}|${XDB_MS_USER:-babelfish_user}|*OFF|10|0|1000|6|$T"
   echo "W|PROCMS|xdbpw"
-  echo "P|PROCM1|MSSQL|A|127.0.0.1|14333|master|babelfish_user|*OFF|10|0|1000|6|$T"
+  echo "P|PROCM1|MSSQL|A|127.0.0.1|${XDB_MS_PORT:-14333}|${XDB_MS_DB:-master}|${XDB_MS_USER:-babelfish_user}|*OFF|10|0|1000|6|$T"
   echo "W|PROCM1|xdbpw"
   echo "O|PROCM1|tds|C|7.1"
   echo "P|PROCM0|MSSQL|A|127.0.0.1|14330|testdb|sa|*OFF|10|0|1000|6|$T"

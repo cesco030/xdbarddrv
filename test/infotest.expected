@@ -258,7 +258,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
   row: [server] [product] [MySQL]
   row: [server] [version] [*]
   row: [server] [default_collation_id] [*]
-  row: [server] [autocommit] [off]
+  row: [server] [autocommit] [on]
   row: [server] [max_allowed_packet] [not asked yet (the file functions ask)]
   row: [server] [version_number] [*]
   row: [session] [commit_mode] [commitment control]
@@ -335,7 +335,7 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
 > Q select 2
   total rows=1 in 1 fetch calls
 > Q select * from xdb_connection_info
-  row: [link] [state] [in a transaction]
+  row: [link] [state] [idle]
   row: [session] [unit_of_work] [open]
   row: [counters] [reconnects] [1]
   row: [counters] [last_reconnect] [*]
@@ -378,7 +378,7 @@ ARPD0100 -> sqlcode -911 sqlstate 40001 outlen 0 connection lost while idle; rec
 > Q select 4
   total rows=1 in 1 fetch calls
 > Q select * from xdb_connection_info
-  row: [link] [state] [in a transaction]
+  row: [link] [state] [idle]
   row: [session] [unit_of_work] [open]
   row: [counters] [reconnects] [2]
   row: [counters] [last_reconnect] [*]

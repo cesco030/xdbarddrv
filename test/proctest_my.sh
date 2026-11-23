@@ -15,7 +15,12 @@
 #     statement (a driver that leaves part of the server's answer unread does not);
 #   - EXPLAIN and the SHOW statements that are described late too.  No cursor is asked for
 #     these: MySQL 8.0 ends abnormally when a prepared EXPLAIN is run with one;
+#     (EXPLAIN is asked in the traditional format: MySQL 9 answers a plain EXPLAIN with one
+#     column of text, its default being the tree format);
 #   - a table that got a column after the statement was prepared.
+#   - statements that end the transaction on the server by themselves (CREATE TABLE, a
+#     procedure that commits, a DROP TABLE that fails): what the unit of work does after them
+#     must still be taken back by ROLLBACK;
 # Work files: /tmp/xdb_proct.  XDB_PROCT_TRACE=Y writes the trace to /tmp/xdb_PROCMY.log.
 E=$1
 D=/tmp/xdb_proct
@@ -23,7 +28,7 @@ P=$D/profile.emu
 mkdir -p $D
 export XDB_EMU_JOBCCSID=280 XDB_PRF_EMU=$P XDB_TEST_RDB=PROCMY XDB_CONF=/dev/null XDB_SH_MAXROWS=20
 {
-  echo "P|PROCMY|MYSQL|A|127.0.0.1|3306|xdbtest|xdbn|*OFF|10|0|1000|6|${XDB_PROCT_TRACE:-N}"
+  echo "P|PROCMY|MYSQL|A|127.0.0.1|${XDB_MY_PORT:-3306}|xdbtest|${XDB_MY_USER:-xdbn}|${XDB_MY_TLS:-*OFF}|10|0|1000|6|${XDB_PROCT_TRACE:-N}"
   echo "W|PROCMY|xdbpw"
 } > $P
 run() { # title, then the requests on standard input
@@ -39,8 +44,11 @@ X drop procedure if exists xdb_pt_rows
 X drop procedure if exists xdb_pt_two
 X drop procedure if exists xdb_pt_none
 X drop procedure if exists xdb_pt_fail
+X drop procedure if exists xdb_pt_commits
+X drop table if exists xdb_pt_ddl
 X drop table if exists xdb_pt_log
 X create table xdb_pt_log (n int)
+X create procedure xdb_pt_commits(in p_n int) begin insert into xdb_pt_log values (p_n); commit; end
 X create procedure xdb_pt_add(in a int, in b int, out total int) begin set total = a + b; end
 X create procedure xdb_pt_fill(in p_n int) begin drop temporary table if exists xdb_pt_out; create temporary table xdb_pt_out (n int, sq bigint, label varchar(40)); insert into xdb_pt_out values (p_n, p_n * p_n, concat('row ', p_n)), (p_n + 1, (p_n + 1) * (p_n + 1), concat('row ', p_n + 1)); end
 X create procedure xdb_pt_rows(in p_n int) begin insert into xdb_pt_log values (p_n); select n, n * n as sq, concat('row ', n) as label, cast(n / 7 as decimal(9,3)) as part, date_add('2026-01-01', interval n day) as day from (select p_n as n union all select p_n + 1 union all select p_n + 2) t; end
@@ -126,9 +134,36 @@ COMMIT
 D
 EOF2
 
+run "a statement that commits by itself inside a unit of work: what comes after it is still under ROLLBACK" <<'EOF2'
+ISO *CHG
+C
+X delete from xdb_pt_log
+COMMIT
+X insert into xdb_pt_log values (501)
+X create table xdb_pt_ddl (n int)
+X insert into xdb_pt_log values (502)
+X insert into xdb_pt_log values (503)
+ROLLBACK
+Q select n from xdb_pt_log order by n
+X insert into xdb_pt_log values (504)
+X call xdb_pt_commits(505)
+X insert into xdb_pt_log values (506)
+ROLLBACK
+Q select n from xdb_pt_log order by n
+X drop table xdb_pt_ddl
+X insert into xdb_pt_log values (507)
+X drop table xdb_pt_ddl
+X insert into xdb_pt_log values (508)
+ROLLBACK
+Q select n from xdb_pt_log order by n
+X delete from xdb_pt_log
+COMMIT
+D
+EOF2
+
 run "statements the server describes when they run: EXPLAIN, some SHOW" <<'EOF2'
 C
-Q explain select 1
+Q explain format=traditional select 1
 Q select 6 as in_step
 Q show create table xdb_pt_log
 Q show tables like 'xdb_pt%'
@@ -161,6 +196,8 @@ X drop procedure if exists xdb_pt_rows
 X drop procedure if exists xdb_pt_two
 X drop procedure if exists xdb_pt_none
 X drop procedure if exists xdb_pt_fail
+X drop procedure if exists xdb_pt_commits
+X drop table if exists xdb_pt_ddl
 X drop table if exists xdb_pt_log
 D
 EOF2

@@ -137,18 +137,52 @@ spacec(int c)
 }
 
 /*
- * p at a literal, a quoted name or a comment: its end, else p.  The same
- * reading as rewrite_markers(), which sees the text after this module.
+ * How the text at hand is read: set by xlob_text() for the statement the
+ * core is about to look at (one statement at a time in a job).
  */
-static const char *
-run_end(const char *p)
+static const char *tbase = NULL;
+static int	tflags = 0;
+
+void
+xlob_text(const char *start, int flags)
+{
+	tbase = start;
+	tflags = flags;
+}
+
+/*
+ * p at a literal, a quoted name or a comment: its end, else p.  What ends
+ * a literal and what is a comment is the server's to say (XTF_*):
+ * PostgreSQL has $tag$ ... $tag$ and E'...' and comments inside comments,
+ * MySQL takes a backslash for an escape and # for a comment, SQL Server
+ * quotes names with brackets.  The core's rewrite_markers() reads with
+ * this function too.
+ */
+const char *
+xlob_run_end(const char *p)
 {
 	if (*p == '\'' || *p == '"' || *p == '`')
 	{
-		char		q = *p++;
+		char		q = *p;
+		int			bs = 0;
 
+		if (q == '\'')
+		{
+			bs = (tflags & XTF_BACKSLASH) != 0;
+			if ((tflags & XTF_ESTRING) && tbase && p > tbase && (p[-1] == 'E' || p[-1] == 'e') &&
+				(p - 1 == tbase || !namec((unsigned char) p[-2])))
+				bs = 1;
+		}
+		else if (q == '"')
+			bs = (tflags & XTF_BACKSLASH_DQ) != 0;
+		p++;
 		while (*p)
 		{
+			if (bs && *p == '\\' && p[1])
+			{
+				p += 2;
+				continue;
+			}
 			if (*p++ == q)
 			{
 				if (*p != q)
@@ -158,7 +192,58 @@ run_end(const char *p)
 		}
 		return p;
 	}
-	if (p[0] == '-' && p[1] == '-')
+	if ((tflags & XTF_BRACKET) && *p == '[')
+	{
+		const char *e = p + 1;
+
+		/* [name], a closing bracket inside written twice */
+		while (*e)
+		{
+			if (*e++ == ']')
+			{
+				if (*e != ']')
+					return e;
+				e++;
+			}
+		}
+		return e;
+	}
+	if ((tflags & XTF_DOLLAR) && *p == '$' && (tbase == NULL || p == tbase || !namec((unsigned char) p[-1])))
+	{
+		const char *t = p + 1;
+
+		/* $$ or $tag$: to the same once more; $1 is a parameter, a$b a name */
+		if (!(*t >= '0' && *t <= '9'))
+		{
+			while ((*t >= 'A' && *t <= 'Z') || (*t >= 'a' && *t <= 'z') || (*t >= '0' && *t <= '9') || *t == '_' ||
+				   (*t & 0x80))
+				t++;
+			if (*t == '$')
+			{
+				size_t		tl = (size_t) (t + 1 - p);
+				const char *e = t + 1;
+
+				for (;;)
+				{
+					e = strchr(e, '$');
+					if (e == NULL)
+						return p + strlen(p);
+					if (strncmp(e, p, tl) == 0)
+						return e + tl;
+					e++;
+				}
+			}
+		}
+		return p;
+	}
+	if (p[0] == '-' && p[1] == '-' &&
+		(!(tflags & XTF_DASHSPACE) || p[2] == '\0' || spacec((unsigned char) p[2])))
+	{
+		while (*p && *p != '\n')
+			p++;
+		return p;
+	}
+	if ((tflags & XTF_HASH) && *p == '#')
 	{
 		while (*p && *p != '\n')
 			p++;
@@ -166,12 +251,34 @@ run_end(const char *p)
 	}
 	if (p[0] == '/' && p[1] == '*')
 	{
-		const char *e = strstr(p + 2, "*/");
+		const char *e;
 
+		if (tflags & XTF_NESTED)
+		{
+			int			depth = 1;
+
+			for (e = p + 2; *e && depth > 0; e++)
+			{
+				if (e[0] == '/' && e[1] == '*')
+				{
+					depth++;
+					e++;
+				}
+				else if (e[0] == '*' && e[1] == '/')
+				{
+					depth--;
+					e++;
+				}
+			}
+			return e;
+		}
+		e = strstr(p + 2, "*/");
 		return e ? e + 2 : p + strlen(p);
 	}
 	return p;
 }
+
+#define run_end xlob_run_end
 
 /* p at a parameter marker (? or :H, with the :H of an indicator): its end, else p */
 static const char *
@@ -749,6 +856,7 @@ xlob_parse(const char *sql, const xbe_driver *be, void *bc, int stage,
 	*plan = NULL;
 	if (sql == NULL || !maybe(sql))
 		return 0;
+	xlob_text(sql, be && be->text_flags ? be->text_flags(bc) : 0);
 	memset(&c, 0, sizeof c);
 	c.sql = sql;
 	c.e = e;

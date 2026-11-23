@@ -98,10 +98,17 @@ main(int argc, char *argv[])
 	int			gen,
 				kind,
 				gone;
+	volatile _INTRPT_Hndlr_Parms_T ex;
 
 	if (argc < 9)
 		return 1;
-#pragma exception_handler(fail, 0, 0, _C2_ALL, _CTLA_HANDLE_NO_MSG)
+	/*
+	 * An exception that escapes the driver ends the request, not the job.
+	 * Its message stays in the job log, with the module, the procedure and
+	 * the statement it came from: that is what tells where the driver went
+	 * wrong.
+	 */
+#pragma exception_handler(fail, ex, 0, _C2_ALL, _CTLA_HANDLE)
 	gone = xdb_commit_handle(argv[2], argv[4]);
 	xdb_ard_entry((int *) argv[1], argv[2], (int *) argv[3], argv[4],
 				  argv[5], (int *) argv[6], argv[7], (int *) argv[8]);
@@ -122,6 +129,6 @@ main(int argc, char *argv[])
 	return 0;
 fail:
 	*(int *) argv[8] = 0;
-	xdb_fail_sqlca(argv[5]);
+	xdb_fail_sqlca(argv[5], (const char *) ex.Msg_Id);
 	return 0;
 }

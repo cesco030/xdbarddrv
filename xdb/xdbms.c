@@ -42,6 +42,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "xdb_be.h"
+#include "xdblob.h"
 extern int	ile_conv(int from_ccsid, int to_ccsid, const char *in, size_t inlen,
 					 char *out, size_t outsize);
 
@@ -107,6 +108,7 @@ typedef struct
 	int			dt2;			/* datetime2=on: date/time/datetime2 parameters */
 	int			enc;			/* encrypt=: 0 off, 1 prefer, 2 on, 3 strict */
 	int			verify;			/* check the server certificate chain */
+	int			timed_out;		/* a read gave up waiting (the time limit of the sign-on) */
 	char		host[256];
 	xtls	   *tls;
 	int			tls_on;			/* packets travel inside TLS */
@@ -390,7 +392,16 @@ err_state(int n, int cls)
 		case 3701:
 			return "42S02";
 		case 207:
+		case 4104:
 			return "42S22";
+		case 213:
+			return "21S01";
+		case 206:
+		case 257:
+		case 529:
+			return "42804";
+		case 195:
+			return "42883";
 		case 2714:
 			return "42S01";
 		case 102:
@@ -405,6 +416,8 @@ err_state(int n, int cls)
 		case 297:
 			return "42501";
 		case 1205:
+		case 3960:
+		case 3961:
 			return "40001";
 		case 1222:
 			return "57033";
@@ -418,15 +431,28 @@ err_state(int n, int cls)
 		case 8115:
 			return "22003";
 		case 241:
-		case 242:
+		case 295:
 			return "22007";
+		case 242:
+		case 296:
+		case 298:
+		case 517:
+			return "22008";
 		case 245:
 		case 8114:
+		case 8169:
 			return "22018";
+		case 8023:				/* a parameter value its type does not have */
+			return "22023";
 		case 18456:
 		case 18452:
+		case 18470:
+		case 18486:
+		case 18487:
+		case 18488:
 			return "28000";
 		case 4060:
+		case 4064:
 		case 911:
 			return "08004";
 		case 2812:
@@ -606,9 +632,14 @@ sock_read(msc *c, unsigned char *b, size_t n)
 
 			if (c->in == NULL && (c->in = malloc(IN_BUF)) == NULL)
 				return -1;
+			errno = 0;
 			r = c->tls_on ? xtls_read(c->tls, c->in, IN_BUF) : (int) recv(c->fd, (char *) c->in, IN_BUF, 0);
 			if (r <= 0)
+			{
+				if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ETIMEDOUT))
+					c->timed_out = 1;
 				return -1;
+			}
 			c->inpos = 0;
 			c->inlen = k = (size_t) r;
 		}
@@ -641,7 +672,9 @@ static void
 dead(msc *c, xbe_err *e, const char *what)
 {
 	c->dead = 1;
-	if (e)
+	if (e && c->timed_out)
+		xnet_err(e, "08001", "the SQL Server did not answer in the time a connection may take (%s)", what);
+	else if (e)
 		xnet_err(e, "08006", "SQL Server connection lost (%s)", what);
 }
 
@@ -896,20 +929,35 @@ rb32(msc *c, unsigned *v)
 }
 
 /* n bytes of the reply in the scratch buffer */
+#define RB_STEP 65536			/* a value is read in pieces of this size */
 static unsigned char *
 rbuf(msc *c, size_t n)
 {
-	if (n + 8 > c->sbcap)
-	{
-		unsigned char *nb = realloc(c->sb, n + 256);
+	size_t		have = 0;
 
-		if (nb == NULL)
+	/*
+	 * The buffer grows with what has arrived, not with what a length in the
+	 * reply announces: a reply that is not what it should be cannot make
+	 * the job ask for gigabytes of memory.
+	 */
+	do
+	{
+		size_t		part = n - have > RB_STEP ? RB_STEP : n - have;
+
+		if (have + part + 8 > c->sbcap)
+		{
+			size_t		nc = (have + part) * 2 + 256;
+			unsigned char *nb = realloc(c->sb, nc);
+
+			if (nb == NULL)
+				return NULL;
+			c->sb = nb;
+			c->sbcap = nc;
+		}
+		if (part > 0 && rb(c, c->sb + have, part) < 0)
 			return NULL;
-		c->sb = nb;
-		c->sbcap = n + 256;
-	}
-	if (rb(c, c->sb, n) < 0)
-		return NULL;
+		have += part;
+	} while (have < n);
 	return c->sb;
 }
 
@@ -1159,6 +1207,7 @@ col_kind(const mcol *m, xbe_col *x)
 		case 0x24:
 			x->kind = XK_CHAR;
 			x->len = 36;
+			x->u8 = 1;
 			break;
 		case 0x28:
 			x->kind = XK_DATE;
@@ -1172,19 +1221,23 @@ col_kind(const mcol *m, xbe_col *x)
 		case 0x2B:
 			x->kind = XK_VARCHAR;
 			x->len = 34;
+			x->u8 = 1;
 			break;
 		case 0xAF:
 		case 0x2F:
 			x->kind = XK_CHAR;
 			x->len = m->maxlen;
+			x->u8 = 3;			/* bytes of the code page of the server */
 			break;
 		case 0xEF:
 			x->kind = XK_CHAR;
 			x->len = m->maxlen / 2;
+			x->u8 = 3;			/* UTF-16 code units */
 			break;
 		case 0xE7:
 			x->kind = XK_VARCHAR;
 			x->len = m->maxlen / 2;
+			x->u8 = 3;
 			break;
 		case 0xA5:
 		case 0xAD:
@@ -1192,10 +1245,12 @@ col_kind(const mcol *m, xbe_col *x)
 		case 0x25:
 			x->kind = XK_VARCHAR;
 			x->len = m->maxlen * 2;
+			x->u8 = 1;			/* hexadecimal digits */
 			break;
 		default:
 			x->kind = XK_VARCHAR;
 			x->len = m->maxlen;
+			x->u8 = 3;
 			break;
 	}
 }
@@ -1349,8 +1404,19 @@ fmt_value(unsigned type, const unsigned char *d, size_t len, int prec, int scale
 				return fmt_value(0x38, d, len, 0, 0, 0);
 			return fmt_value(0x7F, d, len, 0, 0, 0);
 		case 0x3B:
-			snprintf(t, sizeof t, "%.9g", get_double(d, 4));
-			break;
+			{
+				/* the shortest number that reads back as this REAL: 0.1 and not 0.100000001 */
+				double		v = get_double(d, 4);
+				int			n;
+
+				for (n = 6; n <= 9; n++)
+				{
+					snprintf(t, sizeof t, "%.*g", n, v);
+					if ((float) strtod(t, NULL) == (float) v)
+						break;
+				}
+				break;
+			}
 		case 0x3E:
 			snprintf(t, sizeof t, "%.17g", get_double(d, 8));
 			break;
@@ -1452,19 +1518,37 @@ fmt_value(unsigned type, const unsigned char *d, size_t len, int prec, int scale
 				}
 				secs = (long long) (v / 10000000ULL);
 				frac = (int) (v % 10000000ULL);
-				if (type == 0x29)
+				/*
+				 * The fraction with the digits the type has, as the server
+				 * writes it: a TIME or TIMESTAMP column takes of it what Db2
+				 * has room for, and where the value arrives as text (a
+				 * datetimeoffset, or any of them inside a sql_variant) it is
+				 * the text the server itself makes of the value.
+				 */
 				{
-					snprintf(t, sizeof t, "%02d:%02d:%02d", (int) (secs / 3600), (int) (secs / 60 % 60), (int) (secs % 60));
-					break;
+					char		fr[12] = "";
+					int			digits = scale < 0 ? 0 : scale > 7 ? 7 : scale;
+					int			ao = off < 0 ? -off : off;
+
+					if (digits > 0)
+					{
+						snprintf(fr, sizeof fr, ".%07d", frac);
+						fr[1 + digits] = '\0';
+					}
+					if (type == 0x29)
+					{
+						snprintf(t, sizeof t, "%02d:%02d:%02d%s", (int) (secs / 3600), (int) (secs / 60 % 60), (int) (secs % 60), fr);
+						break;
+					}
+					civil((long) days, &y, &mo, &dd);
+					if (type == 0x2A)
+						snprintf(t, sizeof t, "%04d-%02d-%02d %02d:%02d:%02d%s", y, mo, dd,
+								 (int) (secs / 3600), (int) (secs / 60 % 60), (int) (secs % 60), fr);
+					else
+						snprintf(t, sizeof t, "%04d-%02d-%02d %02d:%02d:%02d%s %c%02d:%02d", y, mo, dd,
+								 (int) (secs / 3600), (int) (secs / 60 % 60), (int) (secs % 60), fr,
+								 off < 0 ? '-' : '+', ao / 60, ao % 60);
 				}
-				civil((long) days, &y, &mo, &dd);
-				if (type == 0x2A)
-					snprintf(t, sizeof t, "%04d-%02d-%02d %02d:%02d:%02d.%06d", y, mo, dd,
-							 (int) (secs / 3600), (int) (secs / 60 % 60), (int) (secs % 60), frac / 10);
-				else
-					snprintf(t, sizeof t, "%04d-%02d-%02d %02d:%02d:%02d.%07d %c%02d:%02d", y, mo, dd,
-							 (int) (secs / 3600), (int) (secs / 60 % 60), (int) (secs % 60), frac,
-							 off < 0 ? '-' : '+', (off < 0 ? -off : off) / 60, (off < 0 ? -off : off) % 60);
 				break;
 			}
 		case 0x24:
@@ -1554,18 +1638,26 @@ read_value(msc *c, const mcol *m, char **out)
 				return -1;
 			if (v == 0)
 				break;
-			if (have + v + 8 > c->sbcap)
+			/* in pieces, so that memory is taken for what arrives (see rbuf) */
+			while (v > 0)
 			{
-				unsigned char *nb = realloc(c->sb, (have + v) * 2 + 256);
+				size_t		part = v > RB_STEP ? RB_STEP : v;
 
-				if (nb == NULL)
+				if (have + part + 8 > c->sbcap)
+				{
+					size_t		nc = (have + part) * 2 + 256;
+					unsigned char *nb = realloc(c->sb, nc);
+
+					if (nb == NULL)
+						return -1;
+					c->sb = nb;
+					c->sbcap = nc;
+				}
+				if (rb(c, c->sb + have, part) < 0)
 					return -1;
-				c->sb = nb;
-				c->sbcap = (have + v) * 2 + 256;
+				have += part;
+				v -= (unsigned) part;
 			}
-			if (rb(c, c->sb + have, v) < 0)
-				return -1;
-			have += v;
 		}
 		if (c->sb == NULL && (c->sb = malloc(256)) != NULL)
 			c->sbcap = 256;
@@ -2385,23 +2477,29 @@ rpc_str(msc *c, const char *s)
 	free(u);
 }
 
-/* highest parameter number @Pn used in a statement */
+/* how SQL Server reads statement text (see XTF_* in xdb_be.h): [names], comments inside comments */
+#define MS_TEXT (XTF_BRACKET | XTF_NESTED)
+
+/*
+ * Highest parameter number @Pn used in a statement.  Literals, quoted
+ * names and comments are read as the core read them when it numbered the
+ * markers (xlob_run_end): a quote inside a comment or a name in brackets
+ * begins no literal.
+ */
 static int
 count_markers(const char *sql)
 {
 	const char *p = sql;
 	int			max = 0;
 
+	xlob_text(sql, MS_TEXT);
 	while (*p)
 	{
-		if (*p == '\'' || *p == '"')
-		{
-			char		q = *p++;
+		const char *r = xlob_run_end(p);
 
-			while (*p && *p != q)
-				p++;
-			if (*p)
-				p++;
+		if (r != p)
+		{
+			p = r;
 			continue;
 		}
 		if (p[0] == '@' && p[1] == 'P' && p[2] >= '1' && p[2] <= '9' &&
@@ -2508,6 +2606,20 @@ parse_ts(const char *v, long *days, unsigned long long *t100)
 	*days = days_1900(y, mo, d);
 	*t100 = ((unsigned long long) h * 3600 + (unsigned long long) mi * 60 + (unsigned long long) sec) * 10000000ULL + frac;
 	return 0;
+}
+
+/* can a datetime hold this date and time (1753 to 9999, in 1/300 s)? */
+static int
+fits_datetime(const char *v)
+{
+	long		days = 0;
+	unsigned long long t100 = 0;
+
+	if (parse_ts(v, &days, &t100) < 0)
+		return 1;				/* not a value at all: the caller reports it */
+	if ((t100 * 3 + 50000) / 100000 >= 25920000ULL && days < days_1900(9999, 12, 31))
+		days++;					/* rounds up to the next day */
+	return days >= days_1900(1753, 1, 1) && days <= days_1900(9999, 12, 31);
 }
 
 static void
@@ -2617,6 +2729,13 @@ rpc_typed(msc *c, char code, const char *v, int scale)
 				{
 					unsigned long long tk = (t100 * 3 + 50000) / 100000;	/* 1/300 s, rounded */
 
+					/*
+					 * A date a datetime does not have (before 1753): the
+					 * server would answer that the message is incorrect,
+					 * which says little.  Said here instead.
+					 */
+					if (v && !fits_datetime(v))
+						return -2;
 					ob_u8(c, 0x6F);
 					ob_u8(c, 8);
 					ob_u8(c, v ? 8 : 0);
@@ -2624,8 +2743,18 @@ rpc_typed(msc *c, char code, const char *v, int scale)
 					{
 						if (tk >= 25920000ULL)
 						{
-							tk = 0;
-							days++;
+							/*
+							 * rounded up to midnight: the next day, but on
+							 * the last day a datetime has its last moment,
+							 * as the server itself rounds there
+							 */
+							if (days >= days_1900(9999, 12, 31))
+								tk = 25919999ULL;
+							else
+							{
+								tk = 0;
+								days++;
+							}
 						}
 						ob_u32(c, (unsigned) days);
 						ob_u32(c, (unsigned) tk);
@@ -2944,12 +3073,34 @@ rpc_params(msc *c, int np, char **pv, const int *pk, int describe, xbe_err *e)
 						break;
 					}
 				case XK_DATE:
-					type = new_types ? "date" : "datetime";
-					codes[i] = new_types ? 'D' : 'd';
+					/*
+					 * A date goes as a date wherever the server has the type
+					 * (SQL Server 2008, TDS 7.3): every date Db2 knows is one
+					 * there, 0001-01-01 included, which a datetime cannot hold;
+					 * and the server makes a datetime of it by itself where
+					 * the statement wants one.
+					 */
+					type = c->tds >= 0x73 ? "date" : "datetime";
+					codes[i] = c->tds >= 0x73 ? 'D' : 'd';
 					break;
 				case XK_TIMESTAMP:
-					type = new_types ? "datetime2" : "datetime";
-					codes[i] = new_types ? 'S' : 'd';
+					/*
+					 * datetime unless the profile says datetime2: a datetime2
+					 * value compared with a datetime column does not find the
+					 * milliseconds that column holds.  A value a datetime
+					 * cannot hold goes as datetime2 all the same, for the
+					 * server would refuse the message otherwise.
+					 */
+					if (new_types || (c->tds >= 0x73 && v && !fits_datetime(v)))
+					{
+						type = "datetime2";
+						codes[i] = 'S';
+					}
+					else
+					{
+						type = "datetime";
+						codes[i] = 'd';
+					}
 					break;
 				case XK_TIME:
 					type = new_types ? "time" : "varchar(8000)";
@@ -2977,11 +3128,18 @@ rpc_params(msc *c, int np, char **pv, const int *pk, int describe, xbe_err *e)
 	for (i = 0; i < np && rc == 0; i++)
 		if (codes[i] == 'F')
 			rc = rpc_file(c, lsrc_of(c, pv[i]), e);
-		else if (rpc_typed(c, codes[i], describe ? NULL : pv[i], scales[i]) < 0)
+		else
 		{
-			xnet_err(e, "22018", "parameter %d: \"%.60s\" is not a valid value for its type", i + 1,
-					 pv[i] ? pv[i] : "");
-			rc = -1;
+			int			r = rpc_typed(c, codes[i], describe ? NULL : pv[i], scales[i]);
+
+			if (r == -2)
+				xnet_err(e, "22008", "parameter %d: %.40s is outside the range of a datetime of this server, "
+						 "1753-01-01 to 9999-12-31", i + 1, pv[i] ? pv[i] : "");
+			else if (r < 0)
+				xnet_err(e, "22018", "parameter %d: \"%.60s\" is not a valid value for its type", i + 1,
+						 pv[i] ? pv[i] : "");
+			if (r < 0)
+				rc = -1;
 		}
 	free(scales);
 	free(codes);
@@ -3078,7 +3236,7 @@ prelogin(msc *c, xbe_err *e)
 		return -1;
 	if (pk_next(c) < 0)
 	{
-		dead(c, e, "no answer to the pre-login request");
+		dead(c, e, "pre-login request");
 		return -1;
 	}
 	p = c->pk;
@@ -3300,10 +3458,16 @@ ms_connect(const xbe_opts *o, xbe_err *e)
 			return NULL;
 		}
 		c->tls_failed = c->tls_login = 0;
+		c->timed_out = 0;
+		/* the time the connection may take is the time the whole sign-on may take */
+		xnet_rcv_timeout(c->fd, timeout);
 		ok = (c->enc != 3 || tls_begin(c, 0, "tds/8.0", e) == 0) &&
 			prelogin(c, e) == 0 && login(c, host, o->user ? o->user : "", pw, db, app, e) == 0;
 		if (ok)
+		{
+			xnet_rcv_timeout(c->fd, 0);
 			break;
+		}
 		if (c->tls)
 			xtls_end(c->tls);
 		c->tls = NULL;
@@ -3320,7 +3484,7 @@ ms_connect(const xbe_opts *o, xbe_err *e)
 		 * A server that drops a 7.4 login without a word may be one that
 		 * only takes the older login record: try once more at 7.1.
 		 */
-		if (c->tds_req >= 0x72 && e->native == 0 && strcmp(e->sqlstate, "08006") == 0)
+		if (c->tds_req >= 0x72 && e->native == 0 && strcmp(e->sqlstate, "08006") == 0 && !c->timed_out)
 		{
 			close(c->fd);
 			c->fd = -1;
@@ -4118,10 +4282,17 @@ ms_info(void *vc, xbe_info_add add, void *ctx)
 	add(ctx, "options", "datetime2", c->dt2 ? "on" : "off");
 }
 
+static int
+ms_text_flags(void *vc)
+{
+	(void) vc;
+	return MS_TEXT;
+}
+
 const xbe_driver xbe_mssql = {
 	"mssql", "@P%d", "MSS", 0,
 	ms_connect, ms_disconnect, ms_version,
 	ms_exec, ms_describe, ms_stmt_free,
 	ms_open, ms_fetch, ms_close, ms_txn, ms_ping, &ms_lob, ms_info,
-	ms_cursor_cols
+	ms_cursor_cols, ms_text_flags
 };

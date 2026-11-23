@@ -376,10 +376,10 @@ ARCN0100 -> sqlcode 0 sqlstate 00000 outlen 20
 > X set session cte_max_recursion_depth = 5000
 > X insert into xdb_ft_long with recursive s (n) as (select 1 union all select n + 1 from s where n < 
 > Q select n, char_length(t) as chars, t from xdb_ft_long order by n
-  row: 1 100000 []
-  row: 199 100000 []
-  row: 200 100000 []
-  row: 201 100000 []
+  row: 1 100000 [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+  row: 199 100000 [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+  row: 200 100000 [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+  row: 201 100000 [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
   total rows=300
 > Q select * from xdb_connection_info
   row: [counters] [rows_fetched] [300]

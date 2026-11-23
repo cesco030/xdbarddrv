@@ -339,6 +339,18 @@ xnet_connect(const char *host, const char *port, int timeout, int sockbuf_kb, xb
 	return fd;
 }
 
+void
+xnet_rcv_timeout(int fd, int seconds)
+{
+	struct timeval tv;
+
+	if (fd < 0)
+		return;
+	tv.tv_sec = seconds > 0 ? seconds : 0;
+	tv.tv_usec = 0;
+	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof tv);
+}
+
 int
 xnet_wait_readable(int fd, int timeout)
 {
